@@ -290,7 +290,7 @@ int main(int argc, char** argv)
 	}
 
 	std::vector<float> input(3 * INPUT_H * INPUT_W);
-	std::ifstream ifs("input", std::ios::binary); //bgr -> rgb, nhwc -> nchw
+	std::ifstream ifs("../data/input", std::ios::binary); //bgr -> rgb, nhwc -> nchw
 	if (ifs.is_open())
 		ifs.read((char*)input.data(), input.size() * sizeof(float));
 	ifs.close();
