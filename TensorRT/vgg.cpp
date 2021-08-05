@@ -10,6 +10,7 @@
 #include "opencv2/opencv.hpp"
 #include <string>
 #include "logging.h"
+#include <io.h>		//access
 
 static std::vector<std::string> class_names = {  // 1000 classes
 	"tench Tinca tinca","goldfish Carassius auratus","great white shark white shark man-eater man-eating shark Carcharodon carcharias","tiger shark Galeocerdo cuvieri","hammerhead hammerhead shark","electric ray crampfish numbfish torpedo","stingray","cock","hen","ostrich Struthio camelus","brambling Fringilla montifringilla","goldfinch Carduelis carduelis","house finch linnet Carpodacus mexicanus","junco snowbird","indigo bunting indigo finch indigo bird Passerina cyanea","robin American robin Turdus migratorius","bulbul","jay","magpie","chickadee","water ouzel dipper","kite","bald eagle American eagle Haliaeetus leucocephalus","vulture","great grey owl great gray owl Strix nebulosa","European fire salamander Salamandra salamandra","common newt Triturus vulgaris","eft","spotted salamander Ambystoma maculatum","axolotl mud puppy Ambystoma mexicanum","bullfrog Rana catesbeiana","tree frog tree-frog","tailed frog bell toad ribbed toad tailed toad Ascaphus trui","loggerhead loggerhead turtle Caretta caretta","leatherback turtle leatherback leathery turtle Dermochelys coriacea","mud turtle","terrapin","box turtle box tortoise","banded gecko","common iguana iguana Iguana iguana","American chameleon anole Anolis carolinensis",
@@ -166,7 +167,7 @@ ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilder
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1 << 20);
+	config->setMaxWorkspaceSize(1 << 22);
 	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
 	std::cout << "build out" << std::endl;
 
@@ -235,49 +236,24 @@ void doInference(IExecutionContext& context, float* input, float* output, int ba
 	CHECK(cudaFree(buffers[outputIndex]));
 }
 
-int main(int argc, char** argv)
+int main()
 {
-	// create a model using the API directly and serialize it to a stream
+	// 변수 선언 
 	char *trtModelStream{ nullptr };
 	size_t size{ 0 };
-
-	bool serialize = false;
-
 	IHostMemory* modelStream{ nullptr };
+	ICudaEngine* engine{ nullptr };
+	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
+	
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 
-	if (serialize) {
+	char strPath[] = { "vgg.engine" };
+	
+	if (access(strPath, 0) == 0 /*vgg.engine 파일이 있는지 유무*/  && !serialize /*Serialize 강제화 값*/) {
 		
-		unsigned int maxBatchSize = 1;
-
-		// Create builder
-		IBuilder* builder = createInferBuilder(gLogger);
-		IBuilderConfig* config = builder->createBuilderConfig();
-
-		// Create model to populate the network, then set the outputs and create an engine
-		ICudaEngine* engine = createEngine(maxBatchSize, builder, config, DataType::kFLOAT);
-		assert(engine != nullptr);
-
-		// Serialize the engine
-		modelStream = engine->serialize();
-		assert(modelStream != nullptr);
-
-		// Close everything down
-		engine->destroy();
-		builder->destroy();
-		config->destroy();
-
-		std::ofstream p("vgg.engine", std::ios::binary);
-		if (!p) {
-			std::cerr << "could not open plan output file" << std::endl;
-			return -1;
-		}
-		p.write(reinterpret_cast<const char*>(modelStream->data()), modelStream->size());
-
-		modelStream->destroy();
-		return 1;
-	}
-	else {
+		std::cout << "Engine file exists" << std::endl;
 		std::ifstream file("vgg.engine", std::ios::binary);
+		
 		if (file.good()) {
 			file.seekg(0, file.end);
 			size = file.tellg();
@@ -287,7 +263,41 @@ int main(int argc, char** argv)
 			file.read(trtModelStream, size);
 			file.close();
 		}
+
+		IRuntime* runtime = createInferRuntime(gLogger);
+		assert(runtime != nullptr);
+
+		engine = runtime->deserializeCudaEngine(trtModelStream, size);
+		assert(engine != nullptr);
+		runtime->destroy();
 	}
+	else {
+		std::cout << "Create Engine file" << std::endl;
+		// Create builder
+		IBuilder* builder = createInferBuilder(gLogger);
+		IBuilderConfig* config = builder->createBuilderConfig();
+
+		// Create model to populate the network, then set the outputs and create an engine
+		engine = createEngine(maxBatchSize, builder, config, DataType::kFLOAT);
+		assert(engine != nullptr);
+
+		// Serialize the engine
+		modelStream = engine->serialize();
+		assert(modelStream != nullptr);
+
+		// Close everything down
+		builder->destroy();
+		config->destroy();
+
+		std::ofstream p("vgg.engine", std::ios::binary);
+		if (!p) {
+			std::cerr << "could not open plan output file" << std::endl;
+			return -1;
+		}
+		p.write(reinterpret_cast<const char*>(modelStream->data()), modelStream->size());
+		modelStream->destroy();
+	}
+	
 
 	std::vector<float> input(3 * INPUT_H * INPUT_W);
 	std::ifstream ifs("../data/input", std::ios::binary); //bgr -> rgb, nhwc -> nchw
@@ -298,10 +308,6 @@ int main(int argc, char** argv)
 	std::vector<float> floatVec(input.begin(), input.end());
 	std::vector<float> outputs(OUTPUT_SIZE);
 
-	IRuntime* runtime = createInferRuntime(gLogger);
-	assert(runtime != nullptr);
-	ICudaEngine* engine = runtime->deserializeCudaEngine(trtModelStream, size);
-	assert(engine != nullptr);
 	IExecutionContext* context = engine->createExecutionContext();
 	assert(context != nullptr);
 	delete[] trtModelStream;
@@ -309,8 +315,9 @@ int main(int argc, char** argv)
 	// Run inference
 	for (int i = 0; i < 1; i++) {
 		auto start = std::chrono::system_clock::now();
-		//doInference(*context, data, prob, 1);
-		doInference(*context, floatVec.data(), outputs.data(), 1);
+		
+		doInference(*context, floatVec.data(), outputs.data(), maxBatchSize);
+		
 		auto end = std::chrono::system_clock::now();
 		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 	}
@@ -318,7 +325,6 @@ int main(int argc, char** argv)
 	// Destroy the engine
 	context->destroy();
 	engine->destroy();
-	runtime->destroy();
 
 	//memcpy(outputs.data(), prob, OUTPUT_SIZE * sizeof(float));
 	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();

@@ -22,11 +22,11 @@ def main():
     img = img.transpose(2, 0, 1)
     img = img.astype(np.float32)
     #tofile(img)
+
     img = torch.from_numpy(img)
     img = img.unsqueeze(0)
-
-    #img3 = torch.from_numpy(img2).transpose(2, 0, 1)
     img = img.to('cuda:0')
+
     out = net(img)
     max_index = out.max(dim=1)
     max_value = out.max()
