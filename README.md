@@ -4,4 +4,5 @@ TensorRT 예제코드
 vgg 
 
 
-reference TensorRT
+reference 
+tensorrtx : https://github.com/wang-xinyu/tensorrtx
