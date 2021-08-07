@@ -1,6 +1,7 @@
 x64
 .vs
 vgg/.idea
-vgg/vgg.pth
-vgg/vgg.wts
-TensorRT/vgg.engine
+vgg/*.pth
+vgg/*.wts
+vgg/*.weights
+TensorRT/*.engine

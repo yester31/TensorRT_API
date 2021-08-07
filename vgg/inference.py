@@ -26,7 +26,7 @@ def main():
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # bgr -> rgb
     img = img.transpose(2, 0, 1)                # hwc -> chw
     img = img.astype(np.float32)                # uint -> float32
-    #tofile(img)                                # img variable을 file로 만들기
+    #tofile(img)                                # tensorRT 입력으로 사용하기 위해 file로 만들기
     img = torch.from_numpy(img)                 # numpy -> tensor
     img = img.unsqueeze(0)                      # [c,h,w] -> [1,c,h,w]
     img = img.to('cuda:0')                      # host -> device
@@ -35,6 +35,29 @@ def main():
     max_index = out.max(dim=1)
     max_value = out.max()
     print('vgg max index : {} , value : {}'.format(max_index, max_value))
+
+
+    if 1:  # LIST 형태 웨이트 파일 생성 로직
+        weights = net.state_dict()
+        weight_list = [(key, value) for (key, value) in weights.items()]
+        for idx in range(len(weight_list)):
+            key, value = weight_list[idx]
+            if "num_batches_tracked" in key:
+                print(idx, "--------------------")
+                continue
+            print(idx, key, value.shape)
+
+        with open("vgg.weights", 'wb') as f:
+            for idx in range(len(weight_list)):  # PROTO
+                key, value = weight_list[idx]
+                if "num_batches_tracked" in key:
+                    print(idx, "--------------------")
+                    continue
+                w = value.cpu().data.numpy()
+                f.write(w)
+                print(0, idx, key, value.shape)
+            print()
+        exit()
 
     if os.path.isfile('vgg.wts'):
         print('Already, vgg.wts file exists.')

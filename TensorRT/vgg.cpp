@@ -101,7 +101,7 @@ std::map<std::string, Weights> loadWeights(const std::string file)
 }
 
 // Creat the engine using only the API and not any parser.
-ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt)
+void createEngine(ICudaEngine* engine, unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt)
 {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 
@@ -113,12 +113,9 @@ ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilder
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
 	IConvolutionLayer* conv1 = network->addConvolutionNd(*data, 64, DimsHW{ 3, 3 }, weightMap["features.0.weight"], weightMap["features.0.bias"]);
-	assert(conv1);
 	conv1->setPaddingNd(DimsHW{ 1, 1 });
 	IActivationLayer* relu1 = network->addActivation(*conv1->getOutput(0), ActivationType::kRELU);
-	assert(relu1);
 	IPoolingLayer* pool1 = network->addPoolingNd(*relu1->getOutput(0), PoolingType::kMAX, DimsHW{ 2, 2 });
-	assert(pool1);
 	pool1->setStrideNd(DimsHW{ 2, 2 });
 
 	conv1 = network->addConvolutionNd(*pool1->getOutput(0), 128, DimsHW{ 3, 3 }, weightMap["features.3.weight"], weightMap["features.3.bias"]);
@@ -155,7 +152,6 @@ ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilder
 	pool1->setStrideNd(DimsHW{ 2, 2 });
 
 	IFullyConnectedLayer* fc1 = network->addFullyConnected(*pool1->getOutput(0), 4096, weightMap["classifier.0.weight"], weightMap["classifier.0.bias"]);
-	assert(fc1);
 	relu1 = network->addActivation(*fc1->getOutput(0), ActivationType::kRELU);
 	fc1 = network->addFullyConnected(*relu1->getOutput(0), 4096, weightMap["classifier.3.weight"], weightMap["classifier.3.bias"]);
 	relu1 = network->addActivation(*fc1->getOutput(0), ActivationType::kRELU);
@@ -168,7 +164,7 @@ ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilder
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
 	config->setMaxWorkspaceSize(1 << 22);
-	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
+	engine = builder->buildEngineWithConfig(*network, *config);
 	std::cout << "build out" << std::endl;
 
 	// Don't need the network any more
@@ -179,33 +175,11 @@ ICudaEngine* createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilder
 	{
 		free((void*)(mem.second.values));
 	}
-
-	return engine;
 }
 
-void APIToModel(unsigned int maxBatchSize, IHostMemory** modelStream)
+void doInference(ICudaEngine* engine, float* input, float* output, int batchSize)
 {
-	// Create builder
-	IBuilder* builder = createInferBuilder(gLogger);
-	IBuilderConfig* config = builder->createBuilderConfig();
-
-	// Create model to populate the network, then set the outputs and create an engine
-	ICudaEngine* engine = createEngine(maxBatchSize, builder, config, DataType::kFLOAT);
-	assert(engine != nullptr);
-
-	// Serialize the engine
-	(*modelStream) = engine->serialize();
-
-	// Close everything down
-	engine->destroy();
-	builder->destroy();
-	config->destroy();
-}
-
-void doInference(IExecutionContext& context, float* input, float* output, int batchSize)
-{
-	const ICudaEngine& engine = context.getEngine();
-
+	IExecutionContext* context = engine->createExecutionContext();
 	// Pointers to input and output device buffers to pass to engine.
 	// Engine requires exactly IEngine::getNbBindings() number of buffers.
 	assert(engine.getNbBindings() == 2);
@@ -213,8 +187,8 @@ void doInference(IExecutionContext& context, float* input, float* output, int ba
 
 	// In order to bind the buffers, we need to know the names of the input and output tensors.
 	// Note that indices are guaranteed to be less than IEngine::getNbBindings()
-	const int inputIndex = engine.getBindingIndex(INPUT_BLOB_NAME);
-	const int outputIndex = engine.getBindingIndex(OUTPUT_BLOB_NAME);
+	const int inputIndex = engine->getBindingIndex(INPUT_BLOB_NAME);
+	const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
 
 	// Create GPU buffers on device
 	CHECK(cudaMalloc(&buffers[inputIndex], batchSize * 3 * INPUT_H * INPUT_W * sizeof(float)));
@@ -226,7 +200,7 @@ void doInference(IExecutionContext& context, float* input, float* output, int ba
 
 	// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
 	CHECK(cudaMemcpyAsync(buffers[inputIndex], input, batchSize * 3 * INPUT_H * INPUT_W * sizeof(float), cudaMemcpyHostToDevice, stream));
-	context.enqueue(batchSize, buffers, stream, nullptr);
+	context->enqueue(batchSize, buffers, stream, nullptr);
 	CHECK(cudaMemcpyAsync(output, buffers[outputIndex], batchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
 
@@ -234,26 +208,25 @@ void doInference(IExecutionContext& context, float* input, float* output, int ba
 	cudaStreamDestroy(stream);
 	CHECK(cudaFree(buffers[inputIndex]));
 	CHECK(cudaFree(buffers[outputIndex]));
+	context->destroy();
+
 }
 
 int main()
 {
 	// 변수 선언 
-	char *trtModelStream{ nullptr };
-	size_t size{ 0 };
-	IHostMemory* modelStream{ nullptr };
+	char *trtModelStream{ nullptr };		// 저장된 스트림을 저장할 변수
+	IHostMemory* modelStream{ nullptr };	// 저장하기 위해 serialzie된 모델 스트림 
 	ICudaEngine* engine{ nullptr };
+	size_t size{ 0 };
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	
 	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
-
 	char strPath[] = { "vgg.engine" };
 	
 	if (access(strPath, 0) == 0 /*vgg.engine 파일이 있는지 유무*/  && !serialize /*Serialize 강제화 값*/) {
 		
-		std::cout << "Engine file exists" << std::endl;
-		std::ifstream file("vgg.engine", std::ios::binary);
-		
+		std::cout << "Engine file exists" << std::endl; // 엔진파일이 존재 하므로 로드 작업 수행
+		std::ifstream file("vgg.engine", std::ios::binary);	
 		if (file.good()) {
 			file.seekg(0, file.end);
 			size = file.tellg();
@@ -267,27 +240,22 @@ int main()
 		IRuntime* runtime = createInferRuntime(gLogger);
 		assert(runtime != nullptr);
 
-		engine = runtime->deserializeCudaEngine(trtModelStream, size);
+		engine = runtime->deserializeCudaEngine(trtModelStream, size); // 파일에서 로드한 스트림을 이용하여 엔진생성
 		assert(engine != nullptr);
 		runtime->destroy();
+		delete[] trtModelStream;
 	}
 	else {
-		std::cout << "Create Engine file" << std::endl;
-		// Create builder
+		std::cout << "Create Engine file" << std::endl; // 새로운 엔진 생성
+
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
 
-		// Create model to populate the network, then set the outputs and create an engine
-		engine = createEngine(maxBatchSize, builder, config, DataType::kFLOAT);
+		createEngine(engine, maxBatchSize, builder, config, DataType::kFLOAT); // *** Trt 모델 만들기 ***
 		assert(engine != nullptr);
 
-		// Serialize the engine
 		modelStream = engine->serialize();
 		assert(modelStream != nullptr);
-
-		// Close everything down
-		builder->destroy();
-		config->destroy();
 
 		std::ofstream p("vgg.engine", std::ios::binary);
 		if (!p) {
@@ -295,6 +263,9 @@ int main()
 			return -1;
 		}
 		p.write(reinterpret_cast<const char*>(modelStream->data()), modelStream->size());
+
+		builder->destroy();
+		config->destroy();
 		modelStream->destroy();
 	}
 	
@@ -304,31 +275,25 @@ int main()
 	if (ifs.is_open())
 		ifs.read((char*)input.data(), input.size() * sizeof(float));
 	ifs.close();
+	std::vector<float> input_f(input.begin(), input.end());
 
-	std::vector<float> floatVec(input.begin(), input.end());
 	std::vector<float> outputs(OUTPUT_SIZE);
 
-	IExecutionContext* context = engine->createExecutionContext();
-	assert(context != nullptr);
-	delete[] trtModelStream;
 
 	// Run inference
 	for (int i = 0; i < 1; i++) {
-		auto start = std::chrono::system_clock::now();
-		
-		doInference(*context, floatVec.data(), outputs.data(), maxBatchSize);
-		
+		auto start = std::chrono::system_clock::now();		
+		doInference(engine, input_f.data(), outputs.data(), maxBatchSize);		
 		auto end = std::chrono::system_clock::now();
 		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
 	}
 
-	// Destroy the engine
-	context->destroy();
-	engine->destroy();
-
-	//memcpy(outputs.data(), prob, OUTPUT_SIZE * sizeof(float));
+	// print result
 	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
 	std::cout << max_index << " , " << class_names[max_index] << " , " << outputs[max_index] << std::endl;
+
+	// Destroy the engine
+	engine->destroy();
 
 	return 0;
 }
