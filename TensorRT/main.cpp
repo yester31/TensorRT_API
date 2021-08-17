@@ -1,7 +1,17 @@
-#include "utils.h"
-#include "NvInfer.h"
-#include "logging.h"
+#include <cassert>
+#include <string>
 #include "cuda_runtime_api.h"
+#include "NvInferRuntime.h"
+#include "NvInfer.h"
+#include "NvInferPlugin.h"
+#include "plugin.hpp"
+#include "NvInfer.h"
+#include "opencv2/opencv.hpp"
+#include "logging.hpp"
+#include "utils.hpp"
+
+REGISTER_TENSORRT_PLUGIN(SPreprocPluginV2Creator);
+using namespace nvinfer1;
 
 #define CHECK(status) \
     do\
@@ -14,42 +24,42 @@
         }\
     } while (0)
 
-using namespace nvinfer1;
-
 static Logger gLogger;
-
-static const int INPUT_H = 224;
-static const int INPUT_W = 224;
-static const int OUTPUT_SIZE = 1000;
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
 
-
 void main() {
 
 	// 0. 이미지경로 로드
-	std::string img_dir = "../data";
+	//std::string img_dir = "../data";
+	std::string img_dir = "C:/Users/yeste/Desktop/TensorRT_EX/date";
 	std::vector<std::string> file_names;
 	if (SearchFile(img_dir.c_str(), file_names) < 0) {
 		std::cerr << "data search error" << std::endl;
 	}
+	else {
+		std::cout << "total img : "<<file_names.size() << std::endl;
+	}
 
 	// 1. 이미지 데이터 로드
 	int batch_size = 1;
-	int input_width = 640;
-	int input_height = 640;
-	Mat img(input_height, input_width, CV_8UC3);
-	Mat ori_img;
-	vector<uint8_t> input(batch_size * input_height * input_width * 3);
+	int input_width = 224;
+	int input_height = 224;
+	int OUTPUT_SIZE = 1000;
+
+	cv::Mat img(input_height, input_width, CV_8UC3);
+	cv::Mat ori_img;
+	std::vector<uint8_t> input(batch_size * input_height * input_width * 3);
 
 	for (int idx = 0; idx < file_names.size(); idx++) {
-		Mat ori_img = imread(file_names[idx]);
-		resize(ori_img, img, img.size());
+		cv::Mat ori_img = cv::imread(file_names[idx]);
+		cv::resize(ori_img, img, img.size());
 		memcpy(input.data(), img.data, batch_size * input_height * input_width * 3);
 	}
 
-	std::vector<float> output(OUTPUT_SIZE);
+	//std::vector<float> output(OUTPUT_SIZE);
+	std::vector<float> output(batch_size * input_height * input_width * 3);
 
 	std::cout << "Create Engine file" << std::endl; // 새로운 엔진 생성
 
@@ -62,13 +72,17 @@ void main() {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 	// Create input tensor of shape { 3, INPUT_H, INPUT_W } with name INPUT_BLOB_NAME
 	nvinfer1::DataType dt = nvinfer1::DataType::kFLOAT;
-	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W }); // [N,C,H,W]
+	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, input_height, input_width }); // [N,C,H,W]
 	assert(data);
 
-	//IFullyConnectedLayer* fc1 = network->addFullyConnected(*pool1->getOutput(0), 4096, weightMap["classifier.0.weight"], weightMap["classifier.0.bias"]);
-	//fc1->getOutput(0)->setName(OUTPUT_BLOB_NAME);
-	//std::cout << "set name out" << std::endl;
-	//network->markOutput(*fc1->getOutput(0));
+	SPreproc preproc{batch_size,3,input_height,input_width};
+	IPluginCreator* creator = getPluginRegistry()->getPluginCreator("preproc", "1");
+	IPluginV2 *plugin = creator->createPlugin("layerName(class)", (PluginFieldCollection*)&preproc);
+	IPluginV2Layer* plugin_layer = network->addPluginV2(&data, 1, *plugin);
+	plugin_layer->setName("layer(instance)");
+	plugin_layer->getOutput(0)->setName(OUTPUT_BLOB_NAME);
+	std::cout << "set name out" << std::endl;
+	network->markOutput(*plugin_layer->getOutput(0));
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
@@ -91,7 +105,7 @@ void main() {
 	IExecutionContext* context = engine->createExecutionContext();
 	// Pointers to input and output device buffers to pass to engine.
 	// Engine requires exactly IEngine::getNbBindings() number of buffers.
-	assert(engine.getNbBindings() == 2);
+	//assert(engine.getNbBindings() == 2);
 	void* buffers[2];
 
 	// In order to bind the buffers, we need to know the names of the input and output tensors.
@@ -100,19 +114,21 @@ void main() {
 	const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
 
 	// Create GPU buffers on device
-	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * 3 * INPUT_H * INPUT_W * sizeof(float)));
-	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
+	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * 3 * input_height * input_width * sizeof(float)));
+	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * 3 * input_height * input_width * sizeof(float)));
+	//CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
 
 	// Create stream
 	cudaStream_t stream;
 	CHECK(cudaStreamCreate(&stream));
 
 	// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
-	CHECK(cudaMemcpyAsync((uint8_t*)buffers[inputIndex], input.data(), maxBatchSize * 3 * INPUT_H * INPUT_W , cudaMemcpyHostToDevice, stream));
+	CHECK(cudaMemcpyAsync((uint8_t*)buffers[inputIndex], input.data(), maxBatchSize * 3 * input_height * input_width, cudaMemcpyHostToDevice, stream));
 
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
 
-	CHECK(cudaMemcpyAsync(output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * OUTPUT_SIZE , cudaMemcpyDeviceToHost, stream));
+	//CHECK(cudaMemcpyAsync(output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * OUTPUT_SIZE , cudaMemcpyDeviceToHost, stream));
+	CHECK(cudaMemcpyAsync(output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * 3 * input_height * input_width, cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
 
 	// print result
