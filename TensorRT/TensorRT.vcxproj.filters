@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="vgg.cpp" />
+    <ClCompile Include="utils.cpp">
+      <Filter>utils</Filter>
+    </ClCompile>
+    <ClCompile Include="plugin_ex1.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="preprocess.hpp">
+      <Filter>plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="logging.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+    <ClInclude Include="utils.hpp">
+      <Filter>utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="plugin">
+      <UniqueIdentifier>{b08e34f0-7631-4bd6-b666-41b735a20001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="utils">
+      <UniqueIdentifier>{1f6f354d-a2df-47f0-af86-7d80e4dc7112}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="preprocess.cu">
+      <Filter>plugin</Filter>
+    </CudaCompile>
+  </ItemGroup>
+</Project>

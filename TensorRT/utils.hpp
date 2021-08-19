@@ -1,8 +1,29 @@
-#pragma once
+﻿#pragma once
 
-//���� �̸� ��������(DFS) window��
+// 파일 이름 가져오기(DFS) window용
 int SearchFile(const std::string& folder_path, std::vector<std::string> &file_names, bool recursive = false);
 
+// vector 값 출력
+void valueCheck(std::vector<float>& Input, int IN = 1, int IC = 1, int IH = 1, int IW = 1, bool one = false);
+
+// 데이터 초기화 함수 (스칼라, 등차수열)
+void initTensor(std::vector<float>& output, float start = 1, float step = 0);
+
+// 데이터 초기화 함수 (랜덤 생성)
+void initTensor(std::vector<float>& output, std::string random, float min = -10.f, float max = 10.f);
+
+// 데이터 초기화 함수 (차원값 입력)
+void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start = 1, float step = 0);
+
+// 데이터 바이너리 파일로 생성 (serialize) 
+void tofile(std::vector<float> &Buffer, std::string fname = "../Validation/C_Tensor");
+
+// 최대값 인덱스 출력 함수
+// 사용예) 
+// std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
+int argMax(std::vector<float> &output);
+
+// imagenet label name 1000
 std::vector<std::string> class_names = {  // 1000 classes
 	"tench Tinca tinca","goldfish Carassius auratus","great white shark white shark man-eater man-eating shark Carcharodon carcharias","tiger shark Galeocerdo cuvieri","hammerhead hammerhead shark","electric ray crampfish numbfish torpedo","stingray","cock","hen","ostrich Struthio camelus","brambling Fringilla montifringilla","goldfinch Carduelis carduelis","house finch linnet Carpodacus mexicanus","junco snowbird","indigo bunting indigo finch indigo bird Passerina cyanea","robin American robin Turdus migratorius","bulbul","jay","magpie","chickadee","water ouzel dipper","kite","bald eagle American eagle Haliaeetus leucocephalus","vulture","great grey owl great gray owl Strix nebulosa","European fire salamander Salamandra salamandra","common newt Triturus vulgaris","eft","spotted salamander Ambystoma maculatum","axolotl mud puppy Ambystoma mexicanum","bullfrog Rana catesbeiana","tree frog tree-frog","tailed frog bell toad ribbed toad tailed toad Ascaphus trui","loggerhead loggerhead turtle Caretta caretta","leatherback turtle leatherback leathery turtle Dermochelys coriacea","mud turtle","terrapin","box turtle box tortoise","banded gecko","common iguana iguana Iguana iguana","American chameleon anole Anolis carolinensis",
 	"whiptail whiptail lizard","agama","frilled lizard Chlamydosaurus kingi","alligator lizard","Gila monster Heloderma suspectum","green lizard Lacerta viridis","African chameleon Chamaeleo chamaeleon","Komodo dragon Komodo lizard dragon lizard giant lizard Varanus komodoensis","African crocodile Nile crocodile Crocodylus niloticus","American alligator Alligator mississipiensis","triceratops","thunder snake worm snake Carphophis amoenus","ringneck snake ring-necked snake ring snake","hognose snake puff adder sand viper","green snake grass snake","king snake kingsnake","garter snake grass snake","water snake","vine snake","night snake Hypsiglena torquata","boa constrictor Constrictor constrictor","rock python rock snake Python sebae","Indian cobra Naja naja","green mamba","sea snake","horned viper cerastes sand viper horned asp Cerastes cornutus","diamondback diamondback rattlesnake Crotalus adamanteus","sidewinder horned rattlesnake Crotalus cerastes","trilobite","harvestman daddy longlegs Phalangium opilio","scorpion","black and gold garden spider Argiope aurantia","barn spider Araneus cavaticus","garden spider Aranea diademata","black widow Latrodectus mactans","tarantula","wolf spider hunting spider","tick","centipede",

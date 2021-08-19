@@ -9,9 +9,10 @@
 #include <algorithm>
 #include "opencv2/opencv.hpp"
 #include <string>
-#include "logging.h"
 #include <io.h>		//access
-#include "utils.h"
+#include "utils.hpp"		// custom function
+#include "preprocess.hpp"	// preprocess plugin 
+#include "logging.hpp"	
 
 
 #define CHECK(status) \

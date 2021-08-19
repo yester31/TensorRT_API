@@ -1,9 +1,12 @@
-#include <io.h>
+ï»¿#include <io.h>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
 #include <string>
 #include <vector>
+#include <algorithm>
 
-//ÆÄÀÏ ÀÌ¸§ °¡Á®¿À±â(DFS) window¿ë
+//íŒŒì¼ ì´ë¦„ ê°€ì ¸ì˜¤ê¸°(DFS) windowìš©
 int SearchFile(const std::string& folder_path, std::vector<std::string> &file_names, bool recursive = false)
 {
 	_finddata_t file_info;
@@ -46,3 +49,75 @@ int SearchFile(const std::string& folder_path, std::vector<std::string> &file_na
 	_findclose(handle);
 	return 0;
 }
+
+void valueCheck(std::vector<float>& Input, int IN = 1, int IC = 1, int IH = 1, int IW = 1, bool one = false) {
+	std::cout << "===== valueCheck func =====" << std::endl;
+	if (one) IN = 1;
+	int tot = IN * IC * IH * IW;
+	if (Input.size() != tot) {
+		if (tot == 1)
+		{
+			IN = Input.size();
+		}
+		else {
+			return;
+		}
+	}
+	int N_offset = IC * IH * IW;
+	int C_offset, H_offset, W_offset, g_idx;
+	for (int â n_idx = 0; â n_idx < IN; â n_idx++) {
+		C_offset = â n_idx * N_offset;
+		for (int â c_idx = 0; â c_idx < IC; â c_idx++) {
+			H_offset = â c_idx * IW * IH + C_offset;
+			for (int â h_idx = 0; â h_idx < IH; â h_idx++) {
+				W_offset = â h_idx * IW + H_offset;
+				for (int w_idx = 0; w_idx < IW; w_idx++) {
+					g_idx = w_idx + W_offset;
+					std::cout << std::setw(5) << Input[g_idx] << " ";
+				}std::cout << std::endl;
+			}std::cout << std::endl; std::cout << std::endl;
+		}
+	}
+}
+
+void initTensor(std::vector<float>& output, float start = 1, float step = 0)
+{
+	std::cout << "===== InitTensor func (scalar or step)=====" << std::endl;
+	float count = start;
+	for (int i = 0; i < output.size(); i++) {
+		output[i] = count;
+		count += step;
+	}
+}
+
+void initTensor(std::vector<float>& output, std::string random, float min = -10.f, float max = 10.f)
+{
+	std::cout << "===== InitTensor func (random value) =====" << std::endl;
+
+	for (int i = 0; i < output.size(); i++) {
+		output[i] = min + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (max - min)));
+	}
+}
+
+void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start = 1, float step = 0) {
+	std::cout << "===== scalarTensor func =====" << std::endl;
+	std::cout << "Tensor[" << N << "][" << C << "][" << H << "][" << W << "]" << std::endl << std::endl;
+	int tot_size = N * C * H * W;
+	if (output.size() != tot_size)
+		output.resize(tot_size);
+	initTensor(output, start, step);
+}
+
+void tofile(std::vector<float> &Buffer, std::string fname = "../Calc_Validation/C_Tensor") {
+	std::ofstream fs(fname, std::ios::binary);
+	if (fs.is_open())
+		fs.write((const char*)Buffer.data(), Buffer.size() * sizeof(float));
+	fs.close();
+	std::cout << "The file produced in " << fname << std::endl;
+}
+
+int argMax(std::vector<float> &output) {
+
+	return max_element(output.begin(), output.end()) - output.begin();
+}
+//std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;

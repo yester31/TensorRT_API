@@ -9,14 +9,18 @@
 3. TensorRT 모델이 빌드되고 난 뒤 생성된 모델 스트림 Serialize 하여 엔진 파일로 생성.     
 4. 이 후 작업에서 엔진파일만 로드하여 추론 수행(만약 모델 파리미터나 레이어 수정시 3번 작업 재실행).     
 
+## custom plugin example 완료 
+- 전처리 기능을 수행하는 레이어(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1](Normalize))
+- plugin_ex1.cpp (plugin 예제 코드)
+- preprocess.hpp (plugin 코드)
+- preprocess.cu (전처리 기능 cuda kernel 함수)
+- Validation/Validation.py (계산 결과 검증)
 
-## tensorrtx vgg 구현체 이용 TensorRT 기본 예제 만들기 (진행중)
-- 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성 또는 엔진 파일 로드 작업 수행)
+##  TensorRT 기본 예제 (진행중)
+- 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성 또는 엔진 파일 로드 작업 수행) (완료)
 - 좀 더 쉽고 직관적 코드 구조
 - TRT 모델용 웨이트 파일의 웨이트 구조를 딕셔너리에서 리스트로 변경 (파일 용량 50% 감소)
-- 입력 이미지 전처리 custom layer 예제 만들기 (custom plugin)(c++ cpu 코드와 결과값 비교 검증 필요)
 
-vgg 예제 -> (refactoring) -> 기본 예제 -> (custom plugin) ->plugin 예제 
 
 
 ## reference   
