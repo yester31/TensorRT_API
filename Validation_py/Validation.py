@@ -1,4 +1,4 @@
-import torch # torch 1.9.0+cu111
+#import torch # torch 1.9.0+cu111
 import numpy as np
 import cv2
 from compare import *

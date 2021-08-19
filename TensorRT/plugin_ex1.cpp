@@ -1,7 +1,6 @@
 // 2021-8-19 by YH PARK 
 // custom plugin 만들기 (전처리 기능을 수행하는 레이어)
 // preprocess(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1](Normalize))
-
 #include "cuda_runtime_api.h"
 #include "NvInferRuntime.h"
 #include "NvInfer.h"
@@ -85,12 +84,9 @@ void main()
 	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);
 	// network 객체에 custom(preprocess) plugin을 사용하여 custom(preprocess) 레이어 추가
 	IPluginV2Layer* preprocess_layer = network->addPluginV2(&input_tensor, 1, *preprocess_plugin);
-
-	//preprocess_layer->setName(OUTPUT_NAME); // layer 이름 설정(여기서는 바로 출력으로 뽑기 위해 output 이름 부여)
-	//ITensor* output_tensor = preprocess_layer->getOutput(0); // preprocess_layer의 결과값이 담길 output_tensor 생성
-	//network->markOutput(*output_tensor);	// preprocess_layer의 출력값을 모델 Output으로 설정
-	preprocess_layer->getOutput(0)->setName(OUTPUT_NAME);
-	network->markOutput(*preprocess_layer->getOutput(0));
+	preprocess_layer->setName("preprocess_layer"); // layer 이름 설정
+	preprocess_layer->getOutput(0)->setName(OUTPUT_NAME);// 출력값 Tensor 이름을 출력 이름으로 설정 
+	network->markOutput(*preprocess_layer->getOutput(0));// preprocess_layer의 출력값을 모델 Output으로 설정
 
 	builder->setMaxBatchSize(maxBatchSize); // 모델의 배치 사이즈 설정
 	config->setMaxWorkspaceSize(1 << 22);	// 엔진 생성을 위해 사용할 메모리 공간 설정
@@ -122,7 +118,6 @@ void main()
 	// GPU에 버퍼 생성(device에 저장 공간 할당)
 	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float)));
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float)));
-	//CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
 
 	// Cuda 스트림 객체 생성
 	cudaStream_t stream;
@@ -133,7 +128,6 @@ void main()
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
 	// CPU로 출력 데이터 가져오기 (CPU <- GPU)
 	CHECK(cudaMemcpyAsync((char*)output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float), cudaMemcpyDeviceToHost, stream));
-	//CHECK(cudaMemcpyAsync(output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * OUTPUT_SIZE , cudaMemcpyDeviceToHost, stream));
 	// 스트림 단위로 동기화 수행
 	cudaStreamSynchronize(stream);
 	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;

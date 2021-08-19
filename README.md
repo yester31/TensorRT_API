@@ -1,9 +1,9 @@
 # TensorRT_EX
 ## 작업 환경
-- window10
-- Cuda 11.1
+- Windows 10
+- CUDA 11.1
 - TensorRT 8.0.1.6
-- Cudnn 8.2.0
+- Cudnn 8.2.1
 
 
 ## custom plugin example 완료 
