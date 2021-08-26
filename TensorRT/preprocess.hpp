@@ -1,5 +1,6 @@
 #pragma once
 #include <common.h>
+#include <fstream>
 
 struct Preprocess {
 	int N;
@@ -62,10 +63,21 @@ public:
 
 		const int H = mPreprocess.H;
 		const int W = mPreprocess.W;
-		const int C = mPreprocess.W;
+		const int C = mPreprocess.C;
 
 		void preprocess_cu(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
-		preprocess_cu((float*)outputs[0], (unsigned char*)inputs[0], batchSize, H, W, C, stream);
+		preprocess_cu(output, input, batchSize, H, W, C, stream);
+
+		/*int count = batchSize* H* W* C;
+		std::cout << "count : " << count << std::endl;
+		std::vector<uint8_t> gpuBuffer(count);
+		cudaMemcpy(gpuBuffer.data(), inputs, gpuBuffer.size() * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+		std::ofstream ofs("ORI", std::ios::binary);
+		if (ofs.is_open())
+			ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(uint8_t));
+		ofs.close();
+		*/
+
 		return 0;
 	}
 
@@ -101,7 +113,7 @@ public:
 	DataType getOutputDataType(int index, const DataType* inputTypes, int nbInputs) const noexcept override
 	{
 		assert(inputTypes && nbInputs == 1);
-		return inputTypes[0]; //DataType::kFLOAT
+		return DataType::kFLOAT; //
 	}
 
 	// plugin 이름 지정 

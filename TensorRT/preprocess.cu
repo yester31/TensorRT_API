@@ -32,7 +32,7 @@ __global__ void kernel_preprocess(
 void preprocess_cu(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream)
 {
 	int tcount = batchSize * height * width * channel;
-	int block = 256;
+	int block = 512;
 	int grid = (tcount - 1) / block + 1;
 
 	kernel_preprocess << <grid, block, 0, stream >> > (output, input, batchSize, height, width, channel, tcount);

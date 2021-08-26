@@ -57,8 +57,8 @@ void main()
 	
 	for (int idx = 0; idx < file_names.size(); idx++) {
 		cv::Mat ori_img = cv::imread(file_names[idx]);
-		cv::resize(ori_img, img, img.size()); // input size로 리사이즈
-		memcpy(input.data(), img.data, batch_size * input_height * input_width * input_channel );
+		//cv::resize(ori_img, img, img.size()); // input size로 리사이즈
+		memcpy(input.data(), ori_img.data, batch_size * input_height * input_width * input_channel * sizeof(uint8_t));
 	}
 	std::cout << "===== input load done =====" << std::endl;
 	//==========================================================================================
@@ -73,7 +73,7 @@ void main()
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 	
 	// 입력(Input) 레이어 생성
-	ITensor* input_tensor = network->addInput(INPUT_NAME, nvinfer1::DataType::kFLOAT, Dims3{ input_channel, input_height, input_width }); // [N,C,H,W]
+	ITensor* input_tensor = network->addInput(INPUT_NAME, nvinfer1::DataType::kFLOAT, Dims3{  input_height, input_width, input_channel }); // [N,C,H,W]
 	
 	// Custom(preprocess) plugin 사용하기
 	// Custom(preprocess) plugin에서 사용할 구조체 객체 생성
@@ -116,7 +116,7 @@ void main()
 	const int outputIndex = engine->getBindingIndex(OUTPUT_NAME);
 
 	// GPU에 버퍼 생성(device에 저장 공간 할당)
-	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float)));
+	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(uint8_t)));
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float)));
 
 	// Cuda 스트림 객체 생성
@@ -127,13 +127,13 @@ void main()
 	// 배치단위로 비동기로 작업 수행 
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
 	// CPU로 출력 데이터 가져오기 (CPU <- GPU)
-	CHECK(cudaMemcpyAsync((char*)output.data(), (uint8_t*)buffers[outputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float), cudaMemcpyDeviceToHost, stream));
+	CHECK(cudaMemcpyAsync(output.data(), buffers[outputIndex], maxBatchSize * input_channel * input_height * input_width * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	// 스트림 단위로 동기화 수행
 	cudaStreamSynchronize(stream);
 	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
 	//==========================================================================================
 
-	tofile(output); // 결과값 파일로 출력
+	tofile(output, "../Validation_py/C_Tensor"); // 결과값 파일로 출력
 
 	// 자원 해제 작업
 	cudaStreamDestroy(stream);
