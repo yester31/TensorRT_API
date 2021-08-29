@@ -47,8 +47,9 @@ def main():
 
     img = cv2.imread('../TestDate/panda0.jpg')  # image file load
     dur_time = 0
+    iteration = 100
 
-    for i in range(100):
+    for i in range(iteration):
         begin = time.time()
         img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # bgr -> rgb
         img3 = img2.transpose(2, 0, 1)                # hwc -> chw
@@ -59,10 +60,11 @@ def main():
         img6 = img5.unsqueeze(0)                      # [c,h,w] -> [1,c,h,w]
         img6 = img6.to('cuda:0')                      # host -> device
         out = net(img6)
-        end = time.time() - begin
-        dur_time += end
+        dur = time.time() - begin
+        dur_time += dur
+        #print('{} dur time : {}'.format(i, dur))
 
-    print('100 iteration time : {}'.format(dur_time))
+    print('{} iteration time : {}'.format(iteration, dur_time))
 
     max_tensor = out.max(dim=1)
     max_value = max_tensor[0].cpu().data.numpy()[0]

@@ -83,8 +83,9 @@ std::map<std::string, Weights> loadWeights(const std::string file)
 }
 
 // Creat the engine using only the API and not any parser.
-void createEngine(ICudaEngine* engine, unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt)
+void createEngine( unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName)
 {
+	std::cout << "==== model build start ====" << std::endl << std::endl;
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 
 	std::map<std::string, Weights> weightMap = loadWeights("../VGG11_py/vgg.wts");
@@ -150,12 +151,25 @@ void createEngine(ICudaEngine* engine, unsigned int maxBatchSize, IBuilder* buil
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
 	config->setMaxWorkspaceSize(1 << 23);
-	engine = builder->buildEngineWithConfig(*network, *config);
-	std::cout << "==== build done ====" << std::endl;
+	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
 
-	// Don't need the network any more
+	std::cout << "==== model build done ====" << std::endl << std::endl;
+
+	std::cout << "==== model selialize start ====" << std::endl << std::endl;
+
+	IHostMemory* model_stream = engine->serialize();
+	std::ofstream p(engineFileName, std::ios::binary);
+	if (!p) {
+		std::cerr << "could not open plan output file" << std::endl << std::endl;
+		//return -1;
+	}
+	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+
+	model_stream->destroy();
+	engine->destroy();
+	std::cout << "==== model selialize done ====" << std::endl << std::endl;
+
 	network->destroy();
-
 	// Release host memory
 	for (auto& mem : weightMap)
 	{
@@ -163,132 +177,115 @@ void createEngine(ICudaEngine* engine, unsigned int maxBatchSize, IBuilder* buil
 	}
 }
 
-void doInference(ICudaEngine* engine, uint8_t* input, float* output, int batchSize)
-{
-	IExecutionContext* context = engine->createExecutionContext();
-	// Pointers to input and output device buffers to pass to engine.
-	// Engine requires exactly IEngine::getNbBindings() number of buffers.
-	//assert(engine.getNbBindings() == 2);
-	void* buffers[2];
-
-	// In order to bind the buffers, we need to know the names of the input and output tensors.
-	// Note that indices are guaranteed to be less than IEngine::getNbBindings()
-	const int inputIndex = engine->getBindingIndex(INPUT_BLOB_NAME);
-	const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
-
-	// Create GPU buffers on device
-	CHECK(cudaMalloc(&buffers[inputIndex], batchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t)));
-	CHECK(cudaMalloc(&buffers[outputIndex], batchSize * OUTPUT_SIZE * sizeof(float)));
-
-	// Create stream
-	cudaStream_t stream;
-	CHECK(cudaStreamCreate(&stream));
-
-	// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
-	CHECK(cudaMemcpyAsync(buffers[inputIndex], input, batchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
-	context->enqueue(batchSize, buffers, stream, nullptr);
-	CHECK(cudaMemcpyAsync(output, buffers[outputIndex], batchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
-	cudaStreamSynchronize(stream);
-
-	// Release stream and buffers
-	cudaStreamDestroy(stream);
-	CHECK(cudaFree(buffers[inputIndex]));
-	CHECK(cudaFree(buffers[outputIndex]));
-	context->destroy();
-
-}
-
 int main()
 {
 	// 변수 선언 
-
-	ICudaEngine* engine{ nullptr };
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
 	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
-	char strPath[] = { "vgg.engine" };
+	char engineFileName[] = { "vgg.engine" };
 	
-	if (access(strPath, 0) == 0 /*vgg.engine 파일이 있는지 유무*/  && !serialize /*Serialize 강제화 값*/) {
-		char *trtModelStream{ nullptr };				// 저장된 스트림을 저장할 변수
-		size_t size{ 0 };
-		std::cout << "Engine file exists" << std::endl; // 엔진파일이 존재 하므로 로드 작업 수행
-		std::ifstream file("vgg.engine", std::ios::binary);	
-		if (file.good()) {
-			file.seekg(0, file.end);
-			size = file.tellg();
-			file.seekg(0, file.beg);
-			trtModelStream = new char[size];
-			assert(trtModelStream);
-			file.read(trtModelStream, size);
-			file.close();
-		}
-
-		IRuntime* runtime = createInferRuntime(gLogger);
-		assert(runtime != nullptr);
-
-		engine = runtime->deserializeCudaEngine(trtModelStream, size); // 파일에서 로드한 스트림을 이용하여 엔진생성
-		assert(engine != nullptr);
-		runtime->destroy();
-		delete[] trtModelStream;
-	}
-	else {
-		std::cout << "Create Engine file" << std::endl; // 새로운 엔진 생성
+	// 1) engine file 만들기 
+	// 강제 만들기 true면 무조건 다시 만들기
+	// 강제 만들기 false면, engine 파일 있으면 안만들고 
+	//					   engine 파일 없으면 만듬
+	if ((serialize /*Serialize 강제화 값*/ && access(engineFileName, 0) == 0 /*vgg.engine 파일이 있는지 유무*/)) {
+		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
-
-		createEngine(engine, maxBatchSize, builder, config, DataType::kFLOAT); // *** Trt 모델 만들기 ***
-		assert(engine != nullptr);
-
-		IHostMemory* model_stream = engine->serialize();
-
-		std::ofstream p("vgg.engine", std::ios::binary);
-		if (!p) {
-			std::cerr << "could not open plan output file" << std::endl;
-			return -1;
-		}
-		p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
-
+		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engineFileName); // *** Trt 모델 만들기 ***
 		builder->destroy();
 		config->destroy();
-		model_stream->destroy();
+		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성 완료
 	}
-	
-	// 0. 이미지들의 저장 경로 불러오기
-	std::string img_dir = "../TestDate/";
-	std::vector<std::string> file_names;
-	if (SearchFile(img_dir.c_str(), file_names) < 0) {
-		std::cerr << "Data search error" << std::endl;
+
+	// 2) engine file 로드 하기 
+	char *trtModelStream{ nullptr };// 저장된 스트림을 저장할 변수
+	size_t size{ 0 };
+	std::cout << "===== Engine file load =====" << std::endl << std::endl;
+	std::ifstream file(engineFileName, std::ios::binary);
+	if (file.good()) {
+		file.seekg(0, file.end);
+		size = file.tellg();
+		file.seekg(0, file.beg);
+		trtModelStream = new char[size];
+		file.read(trtModelStream, size);
+		file.close();
 	}
 	else {
-		std::cout << "Total number of images : " << file_names.size() << std::endl;
+		std::cout << "[ERROR] Engine file load error" << std::endl;
+	}
+
+	// 3) file에서 로드한 stream으로 tensorrt model 엔진 생성
+	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;
+	IRuntime* runtime = createInferRuntime(gLogger);
+	ICudaEngine* engine = runtime->deserializeCudaEngine(trtModelStream, size);
+	IExecutionContext* context = engine->createExecutionContext();
+	delete[] trtModelStream;
+
+	void* buffers[2];
+	const int inputIndex = engine->getBindingIndex(INPUT_BLOB_NAME);
+	const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
+
+	// GPU에서 입력과 출력으로 사용할 메모리 공간할당
+	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t)));
+	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
+
+	// 4) 입력으로 사용할 이미지 준비하기
+	std::string img_dir = "../TestDate/";
+	std::vector<std::string> file_names;
+	if (SearchFile(img_dir.c_str(), file_names) < 0) { // 이미지 파일 찾기
+		std::cerr << "[ERROR] Data search error" << std::endl;
+	}
+	else {
+		std::cout << "Total number of images : " << file_names.size() << std::endl << std::endl;
 	}
 	cv::Mat img(INPUT_H, INPUT_W, CV_8UC3);
 	cv::Mat ori_img;
 	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C);	// 입력이 담길 컨테이너 변수 생성
-
-	for (int idx = 0; idx < maxBatchSize; idx++) {
+	std::vector<float> outputs(OUTPUT_SIZE);
+	for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
 		cv::Mat ori_img = cv::imread(file_names[idx]);
 		cv::resize(ori_img, img, img.size()); // input size로 리사이즈
 		memcpy(input.data(), img.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
 	}
-	std::cout << "===== input load done =====" << std::endl;
+	std::cout << "===== input load done =====" << std::endl << std::endl;
 
-	std::vector<float> outputs(OUTPUT_SIZE);
+	uint64_t dur_time = 0;
+	uint64_t iter_count = 100;
 
+	// CUDA 스트림 생성
+	cudaStream_t stream;
+	CHECK(cudaStreamCreate(&stream));
 
-	// Run inference
-	for (int i = 0; i < 1; i++) {
-		auto start = std::chrono::system_clock::now();		
-		doInference(engine, input.data(), outputs.data(), maxBatchSize);		
-		auto end = std::chrono::system_clock::now();
-		std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+	// 5) Inference 수행  
+	for (int i = 0; i < iter_count; i++) {
+		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
+		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+		CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
+		context->enqueue(maxBatchSize, buffers, stream, nullptr);
+		CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
+		cudaStreamSynchronize(stream);
+
+		auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - start;
+		dur_time += dur;
+		//std::cout << dur << " milliseconds" << std::endl;
 	}
 
-	// print result
+	// 6) 결과 출력
+	std::cout << "==================================================" << std::endl;
+	std::cout << iter_count  << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
 	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
-	std::cout << max_index << " , " << class_names[max_index] << " , " << outputs[max_index] << std::endl;
+	std::cout << "Index : "<< max_index << ", Probability : " << outputs[max_index] << ", Class Name : " << class_names[max_index] <<  std::endl;
+	std::cout << "==================================================" << std::endl;
 
-	// Destroy the engine
+	// Release stream and buffers ...
+	cudaStreamDestroy(stream);
+	CHECK(cudaFree(buffers[inputIndex]));
+	CHECK(cudaFree(buffers[outputIndex]));
+	context->destroy();
 	engine->destroy();
+	runtime->destroy();
 
 	return 0;
 }

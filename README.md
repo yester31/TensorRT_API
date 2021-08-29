@@ -14,10 +14,23 @@
 - Validation/Validation.py (계산 결과 검증)
 
 
-##  TensorRT 기본 예제 vgg11 (진행중, 엔진 생성 에러 처리중)
+## Simple Classification 모델 예제 완료
+- vgg11 모델
 - preprocess plugin 적용
-- 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성 또는 엔진 파일 로드 작업 수행) (완료)
-- 좀 더 쉽고 직관적 코드 구조
+- 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성) 
+- 좀 더 쉽고 직관적 코드 구조 
+- 성능결과 파이토치 대비 약 4배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
+
+
+## TensorRT PTQ 사용하기 (준비중)
+- vgg11 모델
+- F16 or Int8
+
+
+## Object Detection model 예제 (준비중)
+-  
+
+
 
 
 ## 일반적인 TensorRT 모델 만드는 작업 순서 
