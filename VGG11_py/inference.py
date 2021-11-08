@@ -34,11 +34,11 @@ class_name = [  #bg +  1000 classes #"background",
 
 def main():
 
-    if os.path.isfile('vgg.pth'):                       # vgg.pth 파일이 있다면
-        net = torch.load('vgg.pth')                     # vgg.pth 파일 로드
+    if os.path.isfile('vgg11.pth'):                       # vgg.pth 파일이 있다면
+        net = torch.load('vgg11.pth')                     # vgg.pth 파일 로드
     else:                                               # vgg.pth 파일이 없다면
         net = torchvision.models.vgg11(pretrained=True) # torchvision에서 vgg11 pretrained weight 다운로드 수행
-        torch.save(net, 'vgg.pth')                      # vgg.pth 파일 저장
+        torch.save(net, 'vgg11.pth')                      # vgg.pth 파일 저장
 
     net = net.eval()                            # vgg 모델을 평가 모드로 세팅
     net = net.to('cuda:0')                      # gpu 설정
@@ -70,7 +70,7 @@ def main():
     max_value = max_tensor[0].cpu().data.numpy()[0]
     max_index = max_tensor[1].cpu().data.numpy()[0]
 
-    print('vgg max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index]))
+    print('vgg11 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index]))
 
     if 0:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
@@ -82,7 +82,7 @@ def main():
                 continue
             print(idx, key, value.shape)
 
-        with open("vgg.weights", 'wb') as f:
+        with open("vgg11.weights", 'wb') as f:
             for idx in range(len(weight_list)):  # PROTO
                 key, value = weight_list[idx]
                 if "num_batches_tracked" in key:
@@ -95,11 +95,11 @@ def main():
         exit()
 
     if 0:
-        if os.path.isfile('vgg.wts'):
-            print('Already, vgg.wts file exists.')
+        if os.path.isfile('vgg11.wts'):
+            print('Already, vgg11.wts file exists.')
         else:
             print('making vgg.wts file ...')        # vgg.wts 파일이 없다면 생성
-            f = open("vgg.wts", 'w')
+            f = open("vgg11.wts", 'w')
             f.write("{}\n".format(len(net.state_dict().keys())))
             for k, v in net.state_dict().items():
                 print('key: ', k)
@@ -110,7 +110,7 @@ def main():
                     f.write(" ")
                     f.write(struct.pack(">f", float(vv)).hex())
                 f.write("\n")
-            print('Completed vgg.wts file!')
+            print('Completed vgg11.wts file!')
 
 if __name__ == '__main__':
     main()

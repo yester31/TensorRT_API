@@ -13,17 +13,7 @@
 REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 using namespace nvinfer1;
 
-// CUDA RUNTIME API 에러 체크를 위한 매크로 함수 정의
-#define CHECK(status) \
-    do\
-    {\
-        auto ret = (status);\
-        if (ret != 0)\
-        {\
-            std::cerr << "Cuda failure: " << ret << std::endl;\
-            abort();\
-        }\
-    } while (0)
+
 
 // TensorRT logger 선언
 static Logger gLogger;

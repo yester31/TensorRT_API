@@ -16,17 +16,6 @@
 
 REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 
-#define CHECK(status) \
-    do\
-    {\
-        auto ret = (status);\
-        if (ret != 0)\
-        {\
-            std::cerr << "Cuda failure: " << ret << std::endl;\
-            abort();\
-        }\
-    } while (0)
-
 // stuff we know about the network and the input/output blobs
 static const int INPUT_H = 224;
 static const int INPUT_W = 224;
@@ -241,14 +230,17 @@ int main()
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
 	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
-	char engineFileName[128] = "resnet18.engine";
+	char engineFileName[] = "resnet18";
+
+	char engine_file_path[256];
+	sprintf(engine_file_path, "../Engine/%s.engine", engineFileName);
 
 	// 1) engine file 만들기 
 	// 강제 만들기 true면 무조건 다시 만들기
 	// 강제 만들기 false면, engine 파일 있으면 안만들고 
 	//					   engine 파일 없으면 만듬
 	bool exist_engine = false;
-	if ((access(engineFileName, 0) != -1)) {
+	if ((access(engine_file_path, 0) != -1)) {
 		exist_engine = true;
 	}
 
@@ -256,7 +248,7 @@ int main()
 		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
-		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engineFileName); // *** Trt 모델 만들기 ***
+		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engine_file_path); // *** Trt 모델 만들기 ***
 		builder->destroy();
 		config->destroy();
 		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성 완료
@@ -266,7 +258,7 @@ int main()
 	char *trtModelStream{ nullptr };// 저장된 스트림을 저장할 변수
 	size_t size{ 0 };
 	std::cout << "===== Engine file load =====" << std::endl << std::endl;
-	std::ifstream file(engineFileName, std::ios::binary);
+	std::ifstream file(engine_file_path, std::ios::binary);
 	if (file.good()) {
 		file.seekg(0, file.end);
 		size = file.tellg();

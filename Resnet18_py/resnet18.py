@@ -30,7 +30,7 @@ def main():
     out = net(img)
     max_index = out.max(dim=1)
     max_value = out.max()
-    print('resnet18 max index : {} , value : {}'.format( max_index,max_value ))
+    print('resnet18 max index : {} , value : {}'.format( max_index, max_value))
     print('resnet18 out:', out.shape)
     torch.save(net, "resnet18.pth")
 

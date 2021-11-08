@@ -19,16 +19,20 @@
 - preprocess plugin 적용
 - 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성) 
 - 좀 더 쉽고 직관적 코드 구조 
-- 성능결과 파이토치 대비 약 4배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
+- 성능결과 파이토치 대비 약 2배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
 
 
-## TensorRT PTQ 사용하기 (준비중)
-- vgg11 모델
-- F16 or Int8
+## TensorRT PTQ 사용하기 예제 완료
+- resnet18 모델 (ptq_ex1.cpp 참고)
+- 224x224x3 이미지 1개 100회 반복 계산 수행시간 비교
+- Pytorch  F32			-> 389 ms (ms = milliseconds)
+- TensorRT F32			-> 199 ms
+- TensorRT F16			-> 58 ms
+- TensorRT Int8(PTQ)	-> 40 ms
 
 
 ## Object Detection model 예제 (준비중)
--  
+- 
 
 
 

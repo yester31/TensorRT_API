@@ -5,8 +5,10 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <opencv2/opencv.hpp>
 
-//파일 이름 가져오기(DFS) window용
+// 파일 이름 가져오기(DFS) window용
+// full path name
 int SearchFile(const std::string& folder_path, std::vector<std::string> &file_names, bool recursive = false)
 {
 	_finddata_t file_info;
@@ -121,3 +123,4 @@ int argMax(std::vector<float> &output) {
 	return max_element(output.begin(), output.end()) - output.begin();
 }
 //std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
+//

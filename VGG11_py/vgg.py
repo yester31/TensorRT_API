@@ -30,9 +30,9 @@ def main():
     out = net(img)
     max_index = out.max(dim=1)
     max_value = out.max()
-    print('vgg max index : {} , value : {}'.format( max_index,max_value ))
-    print('vgg out:', out.shape)
-    torch.save(net, "vgg.pth")
+    print('vgg11 max index : {} , value : {}'.format( max_index,max_value ))
+    print('vgg11 out:', out.shape)
+    torch.save(net, "vgg11.pth")
 
 if __name__ == '__main__':
     main()

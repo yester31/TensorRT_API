@@ -42,12 +42,29 @@ def main():
 
     net = net.eval()                            # vgg 모델을 평가 모드로 세팅
     net = net.to('cuda:0')                      # gpu 설정
+    half = True
+
+    if half:
+        net.half()  # to FP16
     #print('model: ', net)                       # 모델 구조 출력
     #summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
 
     img = cv2.imread('../TestDate/panda0.jpg')  # image file load
     dur_time = 0
     iteration = 100
+
+    # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
+    img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # bgr -> rgb
+    img3 = img2.transpose(2, 0, 1)  # hwc -> chw
+    img4 = img3.astype(np.float32)  # uint -> float32
+    img4 /= 255  # 1/255
+    # tofile(img)                                  # tensorRT 입력으로 사용하기 위해 file로 만들기
+    img5 = torch.from_numpy(img4)  # numpy -> tensor
+    img6 = img5.unsqueeze(0)  # [c,h,w] -> [1,c,h,w]
+    img6 = img6.to('cuda:0')  # host -> device
+    if half:
+        img6 = img6.half()
+    out = net(img6)
 
     for i in range(iteration):
         begin = time.time()
@@ -83,7 +100,7 @@ def main():
                 continue
             print(idx, key, value.shape)
 
-        with open("vgg.weights", 'wb') as f:
+        with open("resnet18.weights", 'wb') as f:
             for idx in range(len(weight_list)):  # PROTO
                 key, value = weight_list[idx]
                 if "num_batches_tracked" in key:

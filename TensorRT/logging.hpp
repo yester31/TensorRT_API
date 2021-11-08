@@ -11,3 +11,15 @@ class Logger : public ILogger
 			std::cout << msg << std::endl;
 	}
 };
+
+// CUDA RUNTIME API 에러 체크를 위한 매크로 함수 정의
+#define CHECK(status) \
+    do\
+    {\
+        auto ret = (status);\
+        if (ret != 0)\
+        {\
+            std::cerr << "Cuda failure: " << ret << std::endl;\
+            abort();\
+        }\
+    } while (0)

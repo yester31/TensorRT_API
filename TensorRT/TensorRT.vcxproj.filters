@@ -7,6 +7,13 @@
     <ClCompile Include="plugin_ex1.cpp" />
     <ClCompile Include="resnet18.cpp" />
     <ClCompile Include="vgg11.cpp" />
+    <ClCompile Include="ptq_ex1.cpp" />
+    <ClCompile Include="calibrator.cpp">
+      <Filter>calibrate</Filter>
+    </ClCompile>
+    <ClCompile Include="common.cpp">
+      <Filter>calibrate</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">
@@ -18,6 +25,12 @@
     <ClInclude Include="utils.hpp">
       <Filter>utils</Filter>
     </ClInclude>
+    <ClInclude Include="calibrator.h">
+      <Filter>calibrate</Filter>
+    </ClInclude>
+    <ClInclude Include="common.hpp">
+      <Filter>calibrate</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="plugin">
@@ -26,10 +39,16 @@
     <Filter Include="utils">
       <UniqueIdentifier>{1f6f354d-a2df-47f0-af86-7d80e4dc7112}</UniqueIdentifier>
     </Filter>
+    <Filter Include="calibrate">
+      <UniqueIdentifier>{ee66ee0e-fda5-4789-9e05-a50d9fe108f7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="preprocess.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README.md" />
   </ItemGroup>
 </Project>
