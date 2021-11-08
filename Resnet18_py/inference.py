@@ -34,11 +34,11 @@ class_name = [  #bg +  1000 classes #"background",
 
 def main():
 
-    if os.path.isfile('vgg.pth'):                       # vgg.pth 파일이 있다면
-        net = torch.load('vgg.pth')                     # vgg.pth 파일 로드
-    else:                                               # vgg.pth 파일이 없다면
-        net = torchvision.models.vgg11(pretrained=True) # torchvision에서 vgg11 pretrained weight 다운로드 수행
-        torch.save(net, 'vgg.pth')                      # vgg.pth 파일 저장
+    if os.path.isfile('resnet18.pth'):                      # resnet18.pth 파일이 있다면
+        net = torch.load('resnet18.pth')                    # resnet18.pth 파일 로드
+    else:                                                   # resnet18.pth 파일이 없다면
+        net = torchvision.models.resnet18(pretrained=True)  # torchvision에서 resnet18 pretrained weight 다운로드 수행
+        torch.save(net, 'resnet18.pth')                     # resnet18.pth 파일 저장
 
     net = net.eval()                            # vgg 모델을 평가 모드로 세팅
     net = net.to('cuda:0')                      # gpu 설정
@@ -51,11 +51,11 @@ def main():
 
     for i in range(iteration):
         begin = time.time()
-        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # bgr -> rgb
+        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # bgr -> rgb
         img3 = img2.transpose(2, 0, 1)                # hwc -> chw
         img4 = img3.astype(np.float32)                # uint -> float32
-        img4 /= 255                                  # 1/255
-        #tofile(img)                                # tensorRT 입력으로 사용하기 위해 file로 만들기
+        img4 /= 255                                   # 1/255
+        #tofile(img)                                  # tensorRT 입력으로 사용하기 위해 file로 만들기
         img5 = torch.from_numpy(img4)                 # numpy -> tensor
         img6 = img5.unsqueeze(0)                      # [c,h,w] -> [1,c,h,w]
         img6 = img6.to('cuda:0')                      # host -> device
@@ -70,7 +70,8 @@ def main():
     max_value = max_tensor[0].cpu().data.numpy()[0]
     max_index = max_tensor[1].cpu().data.numpy()[0]
 
-    print('vgg max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index]))
+    print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
+
 
     if 0:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
@@ -94,23 +95,22 @@ def main():
             print()
         exit()
 
-    if 0:
-        if os.path.isfile('vgg.wts'):
-            print('Already, vgg.wts file exists.')
-        else:
-            print('making vgg.wts file ...')        # vgg.wts 파일이 없다면 생성
-            f = open("vgg.wts", 'w')
-            f.write("{}\n".format(len(net.state_dict().keys())))
-            for k, v in net.state_dict().items():
-                print('key: ', k)
-                print('value: ', v.shape)
-                vr = v.reshape(-1).cpu().numpy()
-                f.write("{} {}".format(k, len(vr)))
-                for vv in vr:
-                    f.write(" ")
-                    f.write(struct.pack(">f", float(vv)).hex())
-                f.write("\n")
-            print('Completed vgg.wts file!')
+    if os.path.isfile('resnet18.wts'):
+        print('Already, resnet18.wts file exists.')
+    else:
+        print('making resnet18.wts file ...')        # vgg.wts 파일이 없다면 생성
+        f = open("resnet18.wts", 'w')
+        f.write("{}\n".format(len(net.state_dict().keys())))
+        for k, v in net.state_dict().items():
+            print('key: ', k)
+            print('value: ', v.shape)
+            vr = v.reshape(-1).cpu().numpy()
+            f.write("{} {}".format(k, len(vr)))
+            for vv in vr:
+                f.write(" ")
+                f.write(struct.pack(">f", float(vv)).hex())
+            f.write("\n")
+        print('Completed resnet18.wts file!')
 
 if __name__ == '__main__':
     main()

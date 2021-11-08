@@ -12,7 +12,7 @@ def tofile(img, weight_path = "input2"):
 
 def main():
     print('cuda device count: ', torch.cuda.device_count())
-    net = torchvision.models.vgg11(pretrained=True)
+    net = torchvision.models.resnet18(pretrained=True)
     net = net.eval()
     net = net.to('cuda:0')
     #print(net)
@@ -30,9 +30,9 @@ def main():
     out = net(img)
     max_index = out.max(dim=1)
     max_value = out.max()
-    print('vgg max index : {} , value : {}'.format( max_index,max_value ))
-    print('vgg out:', out.shape)
-    torch.save(net, "vgg.pth")
+    print('resnet18 max index : {} , value : {}'.format( max_index,max_value ))
+    print('resnet18 out:', out.shape)
+    torch.save(net, "resnet18.pth")
 
 if __name__ == '__main__':
     main()

@@ -150,7 +150,7 @@ void createEngine( unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig*
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1 << 23);
+	config->setMaxWorkspaceSize(1 << 20);
 	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
 
 	std::cout << "==== model build done ====" << std::endl << std::endl;
@@ -182,13 +182,18 @@ int main()
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
 	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
-	char engineFileName[] = { "vgg.engine" };
+	char engineFileName[128] = "vgg.engine";
 	
 	// 1) engine file 만들기 
 	// 강제 만들기 true면 무조건 다시 만들기
 	// 강제 만들기 false면, engine 파일 있으면 안만들고 
 	//					   engine 파일 없으면 만듬
-	if ((serialize /*Serialize 강제화 값*/ && access(engineFileName, 0) == 0 /*vgg.engine 파일이 있는지 유무*/)) {
+	bool exist_engine = false;
+	if ((access(engineFileName, 0) != -1)) {
+		exist_engine = true;
+	}
+
+	if (!((serialize == false)/*Serialize 강제화 값*/ == (exist_engine == true) /*vgg.engine 파일이 있는지 유무*/)) {
 		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
@@ -274,6 +279,7 @@ int main()
 
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
+	std::cout << "===============" << engineFileName << "===============" << std::endl;
 	std::cout << iter_count  << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
 	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
 	std::cout << "Index : "<< max_index << ", Probability : " << outputs[max_index] << ", Class Name : " << class_names[max_index] <<  std::endl;
