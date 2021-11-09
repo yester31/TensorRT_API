@@ -24,11 +24,12 @@
 
 ## TensorRT PTQ 사용하기 예제 완료
 - resnet18 모델 (ptq_ex1.cpp 참고)
-- 224x224x3 이미지 1개 100회 반복 계산 수행시간 비교
-- Pytorch  F32			-> 389 ms (ms = milliseconds)
-- TensorRT F32			-> 199 ms
-- TensorRT F16			-> 58 ms
-- TensorRT Int8(PTQ)	-> 40 ms
+- 224x224x3 이미지 1개 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교(ms = milliseconds)
+- Pytorch  F32			-> 389 ms (1.449 GB)
+- Pytorch  F16(half)	-> 330 ms (1.421 GB)
+- TensorRT F32			-> 199 ms (1.356 GB)
+- TensorRT F16			-> 58 ms  (0.922 GB)
+- TensorRT Int8(PTQ)	-> 40 ms  (0.870 GB)
 
 
 ## Object Detection model 예제 (준비중)

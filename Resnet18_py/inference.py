@@ -32,6 +32,21 @@ class_name = [  #bg +  1000 classes #"background",
    "gyromitra","stinkhorn carrion fungus","earthstar","hen-of-the-woods hen of the woods Polyporus frondosus Grifola frondosa","bolete","ear spike capitulum","toilet tissue toilet paper bathroom tissue"
 ]
 
+# 전처리 및 추론 연산 함수
+def infer(img, net, half):
+    img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)     # bgr -> rgb
+    img3 = img2.transpose(2, 0, 1)                  # hwc -> chw
+    img4 = img3.astype(np.float32)                  # uint -> float32
+    img4 /= 255                                     # 1/255
+    # tofile(img)                                   # tensorRT 입력으로 사용하기 위해 file로 만들기
+    img5 = torch.from_numpy(img4)                   # numpy -> tensor
+    if half:
+        img5 = img5.half()
+    img6 = img5.unsqueeze(0)                        # [c,h,w] -> [1,c,h,w]
+    img6 = img6.to('cuda:0')
+    out = net(img6)
+    return out
+
 def main():
 
     if os.path.isfile('resnet18.pth'):                      # resnet18.pth 파일이 있다면
@@ -40,10 +55,10 @@ def main():
         net = torchvision.models.resnet18(pretrained=True)  # torchvision에서 resnet18 pretrained weight 다운로드 수행
         torch.save(net, 'resnet18.pth')                     # resnet18.pth 파일 저장
 
+    #half = True
+    half = False
     net = net.eval()                            # vgg 모델을 평가 모드로 세팅
     net = net.to('cuda:0')                      # gpu 설정
-    half = True
-
     if half:
         net.half()  # to FP16
     #print('model: ', net)                       # 모델 구조 출력
@@ -54,29 +69,11 @@ def main():
     iteration = 100
 
     # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
-    img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # bgr -> rgb
-    img3 = img2.transpose(2, 0, 1)  # hwc -> chw
-    img4 = img3.astype(np.float32)  # uint -> float32
-    img4 /= 255  # 1/255
-    # tofile(img)                                  # tensorRT 입력으로 사용하기 위해 file로 만들기
-    img5 = torch.from_numpy(img4)  # numpy -> tensor
-    img6 = img5.unsqueeze(0)  # [c,h,w] -> [1,c,h,w]
-    img6 = img6.to('cuda:0')  # host -> device
-    if half:
-        img6 = img6.half()
-    out = net(img6)
+    out = infer(img, net, half)
 
     for i in range(iteration):
         begin = time.time()
-        img2 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # bgr -> rgb
-        img3 = img2.transpose(2, 0, 1)                # hwc -> chw
-        img4 = img3.astype(np.float32)                # uint -> float32
-        img4 /= 255                                   # 1/255
-        #tofile(img)                                  # tensorRT 입력으로 사용하기 위해 file로 만들기
-        img5 = torch.from_numpy(img4)                 # numpy -> tensor
-        img6 = img5.unsqueeze(0)                      # [c,h,w] -> [1,c,h,w]
-        img6 = img6.to('cuda:0')                      # host -> device
-        out = net(img6)
+        out = infer(img, net, half)
         dur = time.time() - begin
         dur_time += dur
         #print('{} dur time : {}'.format(i, dur))
@@ -86,9 +83,7 @@ def main():
     max_tensor = out.max(dim=1)
     max_value = max_tensor[0].cpu().data.numpy()[0]
     max_index = max_tensor[1].cpu().data.numpy()[0]
-
     print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
-
 
     if 0:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
