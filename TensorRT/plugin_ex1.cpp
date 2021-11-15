@@ -123,7 +123,7 @@ void main()
 	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
 	//==========================================================================================
 
-	tofile(output, "../Validation_py/C_Tensor"); // 결과값 파일로 출력
+	tofile(output, "../Validation_py/C_Preproc_Result"); // 결과값 파일로 출력
 
 	// 자원 해제 작업
 	cudaStreamDestroy(stream);
