@@ -1,6 +1,8 @@
 # TensorRT_EX
 ## 작업 환경
-- Windows 10
+- Windows 10 laptop
+- CPU i7-11375H
+- GPU RTX-3060
 - CUDA 11.1
 - TensorRT 8.0.1.6
 - Cudnn 8.2.1
@@ -28,13 +30,25 @@
 - Pytorch  F32			-> 389 ms (1.449 GB)
 - Pytorch  F16(half)	-> 330 ms (1.421 GB)
 - TensorRT F32			-> 199 ms (1.356 GB)
-- TensorRT F16			-> 58 ms  (0.922 GB)
+- TensorRT F16(half)	-> 58 ms  (0.922 GB)
 - TensorRT Int8(PTQ)	-> 40 ms  (0.870 GB)
+
+
+## Semantic Segmentaion model 예제 (진행중)
+- unet 모델
+- 512x512x3 모델 사이즈 100회 반복 계산 수행시간 비교(ms = milliseconds)
+- Pytorch  F32			-> 6621 ms
+- Pytorch  F16(half)	-> 3458 ms
+- TensorRT F32			-> 4722 ms
+- TensorRT F16(half)	-> 1858 ms
+- 정합성 수정 필요 (준비중)
+- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
+- 전처리 cuda kernel, resize & letterbox padding (준비중)
+- 후처리 cuda kernel, model output to image (준비중)
 
 
 ## Object Detection model 예제 (준비중)
 - 
-
 
 
 
@@ -45,7 +59,6 @@
 3. 완성된 코드를 빌드하고 실행.     
 4. TensorRT 모델이 빌드되고 난 뒤 생성된 모델 스트림 Serialize 하여 엔진 파일로 생성.     
 5. 이 후 작업에서 엔진파일만 로드하여 추론 수행(만약 모델 파리미터나 레이어 수정시 이전(4) 작업 재실행).     
-
 
 
 ## reference   

@@ -7,6 +7,7 @@ struct Preprocess {
 	int C;
 	int H;
 	int W;
+	int preproc_type;
 };
 
 class PreprocessPluginV2 : public IPluginV2IOExt
@@ -64,9 +65,21 @@ public:
 		const int H = mPreprocess.H;
 		const int W = mPreprocess.W;
 		const int C = mPreprocess.C;
-
-		void preprocess_cu(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
-		preprocess_cu(output, input, batchSize, H, W, C, stream);
+		int p_type = mPreprocess.preproc_type;
+		
+		switch (p_type) {
+			case 0: // vgg11, resnet18 
+				void preprocess_cu_0(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
+				preprocess_cu_0(output, input, batchSize, H, W, C, stream);
+				break; 
+			case 1: // (∞ÌπŒ¡ﬂ..)unet
+				//void preprocess_cu_1(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
+				//preprocess_cu_1(output, input, batchSize, H, W, C, stream);
+				break; 
+			default: 
+				std::cout << "Unknown"; 
+				break; 
+		}
 
 		/*int count = batchSize* H* W* C;
 		std::cout << "count : " << count << std::endl;

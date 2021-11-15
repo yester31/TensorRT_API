@@ -22,7 +22,7 @@ static const int INPUT_H = 224;
 static const int INPUT_W = 224;
 static const int OUTPUT_SIZE = 1000;
 static const int INPUT_C = 3;
-static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -79,7 +79,6 @@ IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, W
 	float *mean = (float*)weightMap[lname + ".running_mean"].values;
 	float *var = (float*)weightMap[lname + ".running_var"].values;
 	int len = weightMap[lname + ".running_var"].count;
-	//std::cout << "len " << len << std::endl;
 
 	float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
 	for (int i = 0; i < len; i++) {
@@ -154,7 +153,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ INPUT_H, INPUT_W, INPUT_C });
 	assert(data);
 
-	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W };// Custom(preprocess) plugin 사용하기
+	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin 사용하기
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
 	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin 생성
 	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network 객체에 custom(preprocess) plugin을 사용하여 custom(preprocess) 레이어 추가

@@ -16,7 +16,10 @@ void initTensor(std::vector<float>& output, std::string random, float min = -10.
 void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start = 1, float step = 0);
 
 // 데이터 바이너리 파일로 생성 (serialize) 
-void tofile(std::vector<float> &Buffer, std::string fname = "../Validation/C_Tensor");
+void tofile(std::vector<float> &Buffer, std::string fname = "../Validation_py/C_Tensor");
+
+// 데이터 바이너리 파일 로드 (unserialize) 
+void fromfile(std::vector<uint8_t>& Buffer, std::string fname = "../Validation_py/C_Tensor");
 
 // 최대값 인덱스 출력 함수
 // 사용예) 

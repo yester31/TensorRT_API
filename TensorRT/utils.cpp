@@ -110,12 +110,12 @@ void initTensor(std::vector<float>& output, int N, int C, int H, int W, float st
 	initTensor(output, start, step);
 }
 
-void tofile(std::vector<float> &Buffer, std::string fname = "../Calc_Validation/C_Tensor") {
+void tofile(std::vector<float> &Buffer, std::string fname = "../Validation_py/C_Tensor") {
 	std::ofstream fs(fname, std::ios::binary);
 	if (fs.is_open())
 		fs.write((const char*)Buffer.data(), Buffer.size() * sizeof(float));
 	fs.close();
-	std::cout << "The file produced in " << fname << std::endl;
+	std::cout << "Done! file production to " << fname << std::endl;
 }
 
 int argMax(std::vector<float> &output) {
@@ -123,4 +123,13 @@ int argMax(std::vector<float> &output) {
 	return max_element(output.begin(), output.end()) - output.begin();
 }
 //std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
-//
+
+
+void fromfile(std::vector<uint8_t>& Buffer, std::string fname = "../Validation_py/C_Tensor") {
+	std::ifstream ifs(fname, std::ios::binary);
+	if (ifs.is_open())
+		ifs.read((char*)Buffer.data(), Buffer.size() * sizeof(uint8_t));
+	ifs.close();
+	std::cout << "Done! file load from " << fname << std::endl;
+}
+

@@ -14,6 +14,7 @@
     <ClCompile Include="common.cpp">
       <Filter>calibrate</Filter>
     </ClCompile>
+    <ClCompile Include="unet.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">
