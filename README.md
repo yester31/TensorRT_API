@@ -21,26 +21,27 @@
 - preprocess plugin 적용
 - 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성) 
 - 좀 더 쉽고 직관적 코드 구조 
-- 성능결과 파이토치 대비 약 2배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
+- 파이토치 대비 약 2배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
 
 
 ## TensorRT PTQ 사용하기 예제 완료
 - resnet18 모델 (ptq_ex1.cpp 참고)
 - 224x224x3 이미지 1개 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교(ms = milliseconds)
-- Pytorch  F32			-> 389 ms (1.449 GB)
-- Pytorch  F16(half)	-> 330 ms (1.421 GB)
-- TensorRT F32			-> 199 ms (1.356 GB)
-- TensorRT F16(half)	-> 58 ms  (0.922 GB)
-- TensorRT Int8(PTQ)	-> 40 ms  (0.870 GB)
+- Pytorch  F32	-> 389 ms (1.449 GB)
+- Pytorch  F16	-> 330 ms (1.421 GB)
+- TensorRT F32	-> 199 ms (1.356 GB)
+- TensorRT F16	-> 58 ms  (0.922 GB)
+- TensorRT Int8 -> 40 ms  (0.870 GB) (PTQ)
 
 
 ## Semantic Segmentaion model 예제 (진행중)
-- unet 모델
-- 512x512x3 모델 사이즈 100회 반복 계산 수행시간 비교(ms = milliseconds)
-- Pytorch  F32			-> 6621 ms
-- Pytorch  F16(half)	-> 3458 ms
-- TensorRT F32			-> 4722 ms
-- TensorRT F16(half)	-> 1858 ms
+- unet 모델 (unet.cpp 참고)
+- 512x512x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
+- Pytorch  F32	-> 6621 ms (3.863 GB)
+- Pytorch  F16	-> 3458 ms (2.677 GB)
+- TensorRT F32	-> 4722 ms (1.600 GB)
+- TensorRT F16	-> 1858 ms (1.080 GB) 
+- TensorRT Int8 -> 938 ms  (1.051 GB) (PTQ)
 - 정합성 수정 필요 (준비중)
 - fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
 - 전처리 cuda kernel, resize & letterbox padding (준비중)
@@ -63,4 +64,5 @@
 
 ## reference   
 tensorrtx : https://github.com/wang-xinyu/tensorrtx
+unet : https://github.com/milesial/Pytorch-UNet
 

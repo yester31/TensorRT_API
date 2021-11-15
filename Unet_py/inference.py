@@ -36,7 +36,7 @@ def infer(img, net, half):
     return out
 
 def main():
-    half = True
+    half = False
     size = 512
     print('cuda device count: ', torch.cuda.device_count())
     net = UNet(n_channels=3, n_classes=2)
@@ -120,8 +120,8 @@ def main():
             f.write("\n")
 
 if __name__ == '__main__':
-    main()
-    if 0:
+    #main()
+    if 1:
         #out_c = fromfile("../Validation_py/output_py")
         out_c = fromfile()
         out_c = torch.from_numpy(out_c).to('cuda:0')

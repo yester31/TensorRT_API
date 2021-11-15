@@ -13,7 +13,7 @@
 #include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
-
+#include "calibrator.h"		// ptq
 REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 
 // stuff we know about the network and the input/output blobs
@@ -224,6 +224,14 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
 		config->setFlag(BuilderFlag::kFP16);
+	}
+	else if (precision_mode == 8) {
+		std::cout << "==== precision int8 ====" << std::endl << std::endl;
+		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
+		assert(builder->platformHasFastInt8());
+		config->setFlag(BuilderFlag::kINT8);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H, "../data_calib/", "unet_int8_calib.table", INPUT_BLOB_NAME);
+		config->setInt8Calibrator(calibrator);
 	}
 	else {
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;
