@@ -13,8 +13,6 @@
 REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 using namespace nvinfer1;
 
-
-
 // TensorRT logger ¼±¾ð
 static Logger gLogger;
 
