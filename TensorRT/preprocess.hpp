@@ -68,11 +68,11 @@ public:
 		int p_type = mPreprocess.preproc_type;
 		
 		switch (p_type) {
-			case 0: // vgg11, resnet18 
+			case 0: // vgg11, resnet18, unet
 				void preprocess_cu_0(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
 				preprocess_cu_0(output, input, batchSize, H, W, C, stream);
 				break; 
-			case 1: // (∞ÌπŒ¡ﬂ..)unet
+			case 1: //
 				//void preprocess_cu_1(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
 				//preprocess_cu_1(output, input, batchSize, H, W, C, stream);
 				break; 
@@ -81,15 +81,15 @@ public:
 				break; 
 		}
 
-		/*int count = batchSize* H* W* C;
-		std::cout << "count : " << count << std::endl;
-		std::vector<uint8_t> gpuBuffer(count);
-		cudaMemcpy(gpuBuffer.data(), inputs, gpuBuffer.size() * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-		std::ofstream ofs("ORI", std::ios::binary);
-		if (ofs.is_open())
-			ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(uint8_t));
-		ofs.close();
-		*/
+		//int count = batchSize* H* W* C;
+		//std::cout << "count : " << count << std::endl;
+		//std::vector<float> gpuBuffer(count);
+		//cudaMemcpy(gpuBuffer.data(), output, gpuBuffer.size() * sizeof(float), cudaMemcpyDeviceToHost);
+		//std::ofstream ofs("../Validation_py/trt_2", std::ios::binary);
+		//if (ofs.is_open())
+		//	ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(float));
+		//ofs.close();
+		//std::exit(0);
 
 		return 0;
 	}

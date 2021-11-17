@@ -19,14 +19,14 @@ void initTensor(std::vector<float>& output, int N, int C, int H, int W, float st
 void tofile(std::vector<float> &Buffer, std::string fname = "../Validation_py/C_Tensor");
 
 // 데이터 바이너리 파일 로드 (unserialize) 
+// 사용 예) 
+// fromfile(input, "../Unet_py/input_data"); // python 전처리 결과 로드
 void fromfile(std::vector<uint8_t>& Buffer, std::string fname = "../Validation_py/C_Tensor");
 
 // 최대값 인덱스 출력 함수
-// 사용예) 
+// 사용 예) 
 // std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
 int argMax(std::vector<float> &output);
-
-
 
 // imagenet label name 1000
 std::vector<std::string> class_names = {  // 1000 classes

@@ -124,7 +124,6 @@ int argMax(std::vector<float> &output) {
 }
 //std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
 
-
 void fromfile(std::vector<uint8_t>& Buffer, std::string fname = "../Validation_py/C_Tensor") {
 	std::ifstream ifs(fname, std::ios::binary);
 	if (ifs.is_open())

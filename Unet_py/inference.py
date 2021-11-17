@@ -9,7 +9,10 @@ import numpy as np
 import torch.nn.functional as F
 from torchvision import transforms
 
-def tofile(img, file_path = "input_data"):
+#torch.backends.cuda.matmul.allow_tf32 = False
+#torch.backends.cudnn.allow_tf32 = False
+
+def tofile(img, file_path = "py_data"):
     with open(file_path, 'wb') as f:
         img.tofile(f)
     f.close()
@@ -26,7 +29,8 @@ def infer(img, net, half):
     img3 = img2.transpose(2, 0, 1)  # hwc -> chw
     img4 = img3.astype(np.float32)  # uint -> float32
     img4 /= 255  # 1/255
-    # tofile(img)                  # tensorRT 입력으로 사용하기 위해 file로 만들기
+    #tofile(img4, "../Validation_py/py_2")
+    #exit(0)
     img5 = torch.from_numpy(img4)  # numpy -> tensor
     if half:
         img5 = img5.half()
@@ -48,7 +52,7 @@ def main():
     #summary(net, (3, size, size))
     img = cv2.imread('00ad56bf7ee6_03.jpg')  # image file load
     #img = cv2.imread('car0.jpg')  # image file load
-
+    #tofile(img, "../Validation_py/py_pre")
     if 1 : # 원본 비율 크기 그대로 리사이즈 및 정사각형 입력 사이즈를 위해 여백 추가
         w = img.shape[1]
         h = img.shape[0]
@@ -63,17 +67,18 @@ def main():
         bb = tb + 1 if nh % 2 == 1 else tb
         lb = (int)((size - nw) / 2)
         rb = lb + 1 if nw % 2 == 1 else lb
-        #img0 = cv2.resize(img, dsize=(nw, nh), interpolation=cv2.INTER_AREA)
-        img0 = cv2.resize(img, dsize=(nw, nh), interpolation=cv2.INTER_AREA)
+        #img0 = cv2.resize(img, dsize=(nw, nh), interpolation=cv2.INTER_AREA) // c함수와 정합성 틀림.
+        img0 = cv2.resize(img, dsize=(nw, nh), interpolation=cv2.INTER_LINEAR)
+        #tofile(img0, "../Validation_py/py_0") # c 코드와 정합성 일치
         img1 = cv2.copyMakeBorder(img0, tb, bb, lb, rb, cv2.BORDER_CONSTANT, value=(128,128,128))
+        #tofile(img1, "../Validation_py/py_1")  # c 코드와 정합성 일치
     else:
         img1 = cv2.resize(img, dsize=(size, size), interpolation=cv2.INTER_AREA)
-    #tofile(img1)
 
     # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
     out = infer(img1, net, half)
-
-    if 1 :
+    tofile(out.cpu().data.numpy(), '../Validation_py/py')
+    if 0 :
         dur_time = 0
         iteration = 100
         for i in range(iteration):
@@ -91,7 +96,7 @@ def main():
     tt2 = np.argmax(tt1, axis=0) * 255
     tt3 = tt2.astype(np.uint8)
     cv2.imshow('tt', tt3)
-    cv2.waitKey()
+    cv2.waitKey(0)
 
     if 0:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
@@ -120,10 +125,9 @@ def main():
             f.write("\n")
 
 if __name__ == '__main__':
-    #main()
-    if 1:
-        #out_c = fromfile("../Validation_py/output_py")
-        out_c = fromfile()
+    main()
+    if 0:
+        out_c = fromfile("../Validation_py/py")
         out_c = torch.from_numpy(out_c).to('cuda:0')
         out = out_c.reshape(1, 2, 512, 512)
         full_mask = F.softmax(out, dim=1)[0].cpu().squeeze()

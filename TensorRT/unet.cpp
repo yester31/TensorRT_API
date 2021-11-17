@@ -1,4 +1,4 @@
-#include "NvInfer.h"
+ï»¿#include "NvInfer.h"
 #include "cuda_runtime_api.h"
 #include <fstream>
 #include <iostream>
@@ -18,9 +18,10 @@ REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 
 // stuff we know about the network and the input/output blobs
 static const int INPUT_H = 512;
-static const int INPUT_W = 512;
-static const int OUTPUT_SIZE = INPUT_H* INPUT_W * 2;
+static const int INPUT_W = INPUT_H;
 static const int INPUT_C = 3;
+static const int class_count = 2;
+static const int OUTPUT_SIZE = INPUT_H * INPUT_W * class_count;
 static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
@@ -111,14 +112,14 @@ ILayer* doubleConv(INetworkDefinition *network, std::map<std::string, Weights>& 
 	conv1->setStrideNd(DimsHW{ 1, 1 });
 	conv1->setPaddingNd(DimsHW{ 1, 1 });
 	conv1->setNbGroups(1);
-	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + ".double_conv.1", 0);
-	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kLEAKY_RELU);
+	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + ".double_conv.1", 1E-05);
+	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
 	IConvolutionLayer* conv2 = network->addConvolutionNd(*relu1->getOutput(0), outch, DimsHW{ 3, 3 }, weightMap[lname + ".double_conv.3.weight"], weightMap[lname + ".double_conv.3.bias"]);
 	conv2->setStrideNd(DimsHW{ 1, 1 });
 	conv2->setPaddingNd(DimsHW{ 1, 1 });
 	conv2->setNbGroups(1);
-	IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + ".double_conv.4", 0);
-	IActivationLayer* relu2 = network->addActivation(*bn2->getOutput(0), ActivationType::kLEAKY_RELU);
+	IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + ".double_conv.4", 1E-05);
+	IActivationLayer* relu2 = network->addActivation(*bn2->getOutput(0), ActivationType::kRELU);
 	assert(relu2);
 	return relu2;
 }
@@ -177,15 +178,14 @@ ILayer* up(INetworkDefinition *network, std::map<std::string, Weights>& weightMa
 }
 
 ILayer* outConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, std::string lname) {
-	IConvolutionLayer* conv1 = network->addConvolutionNd(input, 2, DimsHW{ 1, 1 }, weightMap[lname + ".conv.weight"], weightMap[lname + ".conv.bias"]);
+	IConvolutionLayer* conv1 = network->addConvolutionNd(input, class_count, DimsHW{ 1, 1 }, weightMap[lname + ".conv.weight"], weightMap[lname + ".conv.bias"]);
 	assert(conv1);
 	conv1->setStrideNd(DimsHW{ 1, 1 });
 	conv1->setPaddingNd(DimsHW{ 0, 0 });
 	conv1->setNbGroups(1);
-	conv1->setName("[last_layer]"); // layer ÀÌ¸§ ¼³Á¤
+	conv1->setName("[last_layer]"); // layer ì´ë¦„ ì„¤ì •
 	return conv1;
 }
-
 
 void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName) {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
@@ -193,15 +193,14 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	std::map<std::string, Weights> weightMap = loadWeights("../Unet_py/unet.wts");
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
-	// Create input tensor of shape {3, INPUT_H, INPUT_W} with name INPUT_BLOB_NAME
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W });
 	assert(data);
 
-	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin »ç¿ëÇÏ±â
-	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) pluginÀ» global registry¿¡ µî·Ï ¹× plugin Creator °´Ã¼ »ı¼º
-	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin »ı¼º
-	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network °´Ã¼¿¡ custom(preprocess) pluginÀ» »ç¿ëÇÏ¿© custom(preprocess) ·¹ÀÌ¾î Ãß°¡
-	preprocess_layer->setName("[preprocess_layer]"); // layer ÀÌ¸§ ¼³Á¤
+	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin ì‚¬ìš©í•˜ê¸°
+	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) pluginì„ global registryì— ë“±ë¡ ë° plugin Creator ê°ì²´ ìƒì„±
+	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin ìƒì„±
+	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network ê°ì²´ì— custom(preprocess) pluginì„ ì‚¬ìš©í•˜ì—¬ custom(preprocess) ë ˆì´ì–´ ì¶”ê°€
+	preprocess_layer->setName("[preprocess_layer]"); // layer ì´ë¦„ ì„¤ì •
 
 	// build network
 	auto x1 = doubleConv(network, weightMap, *preprocess_layer->getOutput(0), 64, 3, "inc", 64);
@@ -221,6 +220,8 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
 	config->setMaxWorkspaceSize(16 * (1 << 20));  // 16MB
+	//config->clearFlag(BuilderFlag::kTF32);
+
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
 		config->setFlag(BuilderFlag::kFP16);
@@ -238,11 +239,9 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	}
 	std::cout << "Building engine, please wait for a while..." << std::endl;
 	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
-
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-
 	IHostMemory* model_stream = engine->serialize();
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
@@ -250,11 +249,10 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		//return -1;
 	}
 	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
 	model_stream->destroy();
 	engine->destroy();
-	std::cout << "==== model selialize done ====" << std::endl << std::endl;
-
 	network->destroy();
 
 	// Release host memory
@@ -266,33 +264,33 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 int main()
 {
-	// º¯¼ö ¼±¾ğ 
-	unsigned int maxBatchSize = 1;	// »ı¼ºÇÒ TensorRT ¿£ÁøÆÄÀÏ¿¡¼­ »ç¿ëÇÒ ¹èÄ¡ »çÀÌÁî °ª 
-	bool serialize = false;			// Serialize °­Á¦È­ ½ÃÅ°±â(true ¿£Áø ÆÄÀÏ »ı¼º)
+	unsigned int maxBatchSize = 1;	// ìƒì„±í•  TensorRT ì—”ì§„íŒŒì¼ì—ì„œ ì‚¬ìš©í•  ë°°ì¹˜ ì‚¬ì´ì¦ˆ ê°’ 
+	bool serialize = true;			// Serialize ê°•ì œí™” ì‹œí‚¤ê¸°(true ì—”ì§„ íŒŒì¼ ìƒì„±)
 	char engineFileName[] = "unet";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
-	// 1) engine file ¸¸µé±â 
-	// °­Á¦ ¸¸µé±â true¸é ¹«Á¶°Ç ´Ù½Ã ¸¸µé±â
-	// °­Á¦ ¸¸µé±â false¸é, engine ÆÄÀÏ ÀÖÀ¸¸é ¾È¸¸µé°í 
-	//					   engine ÆÄÀÏ ¾øÀ¸¸é ¸¸µë
+
+	// 1) engine file ë§Œë“¤ê¸° 
+	// ê°•ì œ ë§Œë“¤ê¸° trueë©´ ë¬´ì¡°ê±´ ë‹¤ì‹œ ë§Œë“¤ê¸°
+	// ê°•ì œ ë§Œë“¤ê¸° falseë©´, engine íŒŒì¼ ìˆìœ¼ë©´ ì•ˆë§Œë“¤ê³  
+	//					   engine íŒŒì¼ ì—†ìœ¼ë©´ ë§Œë“¬
 	bool exist_engine = false;
 	if ((access(engine_file_path, 0) != -1)) {
 		exist_engine = true;
 	}
 
-	if (!((serialize == false)/*Serialize °­Á¦È­ °ª*/ == (exist_engine == true) /*resnet18.engine ÆÄÀÏÀÌ ÀÖ´ÂÁö À¯¹«*/)) {
-		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // »õ·Î¿î ¿£Áø »ı¼º
+	if (!((serialize == false)/*Serialize ê°•ì œí™” ê°’*/ == (exist_engine == true) /*resnet18.engine íŒŒì¼ì´ ìˆëŠ”ì§€ ìœ ë¬´*/)) {
+		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // ìƒˆë¡œìš´ ì—”ì§„ ìƒì„±
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
-		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engine_file_path); // *** Trt ¸ğµ¨ ¸¸µé±â ***
+		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engine_file_path); // *** Trt ëª¨ë¸ ë§Œë“¤ê¸° ***
 		builder->destroy();
 		config->destroy();
-		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // »õ·Î¿î ¿£Áø »ı¼º ¿Ï·á
+		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // ìƒˆë¡œìš´ ì—”ì§„ ìƒì„± ì™„ë£Œ
 	}
 
-	// 2) engine file ·Îµå ÇÏ±â 
-	char *trtModelStream{ nullptr };// ÀúÀåµÈ ½ºÆ®¸²À» ÀúÀåÇÒ º¯¼ö
+	// 2) engine file ë¡œë“œ í•˜ê¸° 
+	char *trtModelStream{ nullptr };// ì €ì¥ëœ ìŠ¤íŠ¸ë¦¼ì„ ì €ì¥í•  ë³€ìˆ˜
 	size_t size{ 0 };
 	std::cout << "===== Engine file load =====" << std::endl << std::endl;
 	std::ifstream file(engine_file_path, std::ios::binary);
@@ -308,7 +306,7 @@ int main()
 		std::cout << "[ERROR] Engine file load error" << std::endl;
 	}
 
-	// 3) file¿¡¼­ ·ÎµåÇÑ streamÀ¸·Î tensorrt model ¿£Áø »ı¼º
+	// 3) fileì—ì„œ ë¡œë“œí•œ streamìœ¼ë¡œ tensorrt model ì—”ì§„ ìƒì„±
 	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;
 	IRuntime* runtime = createInferRuntime(gLogger);
 	ICudaEngine* engine = runtime->deserializeCudaEngine(trtModelStream, size);
@@ -319,47 +317,78 @@ int main()
 	const int inputIndex = engine->getBindingIndex(INPUT_BLOB_NAME);
 	const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
 
-	// GPU¿¡¼­ ÀÔ·Â°ú Ãâ·ÂÀ¸·Î »ç¿ëÇÒ ¸Ş¸ğ¸® °ø°£ÇÒ´ç
+	// GPUì—ì„œ ì…ë ¥ê³¼ ì¶œë ¥ìœ¼ë¡œ ì‚¬ìš©í•  ë©”ëª¨ë¦¬ ê³µê°„í• ë‹¹
 	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t)));
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
 	
-	// CPU¿¡¼­ ÀÔ·Â°ú Ãâ·ÂÀ¸·Î »ç¿ëÇÒ ¸Ş¸ğ¸® °ø°£ÇÒ´ç
-	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C);	// ÀÔ·ÂÀÌ ´ã±æ ÄÁÅ×ÀÌ³Ê º¯¼ö »ı¼º
+	// CPUì—ì„œ ì…ë ¥ê³¼ ì¶œë ¥ìœ¼ë¡œ ì‚¬ìš©í•  ë©”ëª¨ë¦¬ ê³µê°„í• ë‹¹
+	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C);	// ì…ë ¥ì´ ë‹´ê¸¸ ì»¨í…Œì´ë„ˆ ë³€ìˆ˜ ìƒì„±
 	std::vector<float> outputs(OUTPUT_SIZE);
-	fromfile(input, "../Unet_py/input_data");
 
-	// 4) ÀÔ·ÂÀ¸·Î »ç¿ëÇÒ ÀÌ¹ÌÁö ÁØºñÇÏ±â
-	//std::string img_dir = "../TestDate/";
-	//std::vector<std::string> file_names;
-	//if (SearchFile(img_dir.c_str(), file_names) < 0) { // ÀÌ¹ÌÁö ÆÄÀÏ Ã£±â
-	//	std::cerr << "[ERROR] Data search error" << std::endl;
-	//}
-	//else {
-	//	std::cout << "Total number of images : " << file_names.size() << std::endl << std::endl;
-	//}
-	//cv::Mat img(INPUT_H, INPUT_W, CV_8UC3);
-	//cv::Mat ori_img;
-	//for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
-	//	cv::Mat ori_img = cv::imread(file_names[idx]);
-	//	cv::resize(ori_img, img, img.size()); // input size·Î ¸®»çÀÌÁî
-	//	memcpy(input.data(), img.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
-	//}
+	// 4) ì…ë ¥ìœ¼ë¡œ ì‚¬ìš©í•  ì´ë¯¸ì§€ ì¤€ë¹„í•˜ê¸° (resize & letterbox padding) openCV ì‚¬ìš©
+	std::string img_dir = "../Unet_py/data";
+	std::vector<std::string> file_names;
+	if (SearchFile(img_dir.c_str(), file_names) < 0) { // ì´ë¯¸ì§€ íŒŒì¼ ì°¾ê¸°
+		std::cerr << "[ERROR] Data search error" << std::endl;
+	}
+	else {
+		std::cout << "Total number of images : " << file_names.size() << std::endl << std::endl;
+	}
+	cv::Mat ori_img;
+	for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
+		cv::Mat ori_img = cv::imread(file_names[idx]);
+		int ori_w = ori_img.cols;
+		int ori_h = ori_img.rows;
+		if (ori_h == ori_w) { // ì…ë ¥ì´ë¯¸ì§€ê°€ ì •ì‚¬ê°í˜•ì¼ ê²½ìš°
+			cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
+			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_AREA); // ëª¨ë¸ ì‚¬ì´ì¦ˆë¡œ ë¦¬ì‚¬ì´ì¦ˆ
+			memcpy(input.data(), img_r.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
+		}
+		else {
+			int new_h, new_w;
+			if (ori_w >= ori_h) {
+				new_h = (int)(ori_h * ((float)INPUT_W / ori_w));
+				new_w = INPUT_W;
+			}
+			else {
+				new_h = INPUT_H;
+				new_w = (int)(ori_w * ((float)INPUT_H / ori_h));
+			}
+			cv::Mat img_r(new_h, new_w, CV_8UC3);
+			//cv::resize(ori_img, img_r, img_r.size(), cv::INTER_AREA); // INTER_AREA ì•Œê³ ë¦¬ì¦˜ ì—ëŸ¬ (c ì™€ python ê²°ê³¼ ë¶ˆì¼ì¹˜)
+			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // ì •í•©ì„± ì¼ì¹˜
+
+			int tb = (int)((INPUT_H - new_h) / 2);
+			int bb = ((new_h % 2) == 1) ? tb + 1 : tb;
+			int lb = (int)((INPUT_W - new_w) / 2);
+			int rb = ((new_w % 2) == 1) ? lb + 1 : lb;
+			cv::Mat img_p(INPUT_H, INPUT_W, CV_8UC3);
+			cv::copyMakeBorder(img_r, img_p, tb, bb, lb, rb, cv::BORDER_CONSTANT, cv::Scalar(128, 128, 128));
+			memcpy(input.data(), img_p.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
+		}
+	}
+	//std::ofstream ofs("../Validation_py/trt_1", std::ios::binary);
+	//if (ofs.is_open())
+	//	ofs.write((const char*)input.data(), input.size() * sizeof(uint8_t));
+	//ofs.close();
+	//std::exit(0);
 
 	std::cout << "===== input load done =====" << std::endl << std::endl;
 
 	uint64_t dur_time = 0;
 	uint64_t iter_count = 100;
 
-	// CUDA ½ºÆ®¸² »ı¼º
+	// CUDA ìŠ¤íŠ¸ë¦¼ ìƒì„±
 	cudaStream_t stream;
 	CHECK(cudaStreamCreate(&stream));
-
 	CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
 	CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
+	//tofile(outputs, "../Validation_py/trt");
+	//std::exit(0);
 
-	// 5) Inference ¼öÇà  
+	// 5) Inference ìˆ˜í–‰  
 	for (int i = 0; i < iter_count; i++) {
 		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
 		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -374,16 +403,45 @@ int main()
 		//std::cout << dur << " milliseconds" << std::endl;
 	}
 
-	// 6) °á°ú Ãâ·Â
+	// 6) ê²°ê³¼ ì¶œë ¥
 	std::cout << "==================================================" << std::endl;
 	std::cout << "===============" << engineFileName << "===============" << std::endl;
 	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
-	tofile(outputs);
-	// ÀÌ¹ÌÁö Ãâ·Â ·ÎÁ÷
+	
+	// ì´ë¯¸ì§€ ì¶œë ¥ ë¡œì§
+	std::vector<uint8_t> show_img(maxBatchSize * INPUT_C * INPUT_H * INPUT_W);
+	std::vector<float> prob(maxBatchSize * INPUT_H * INPUT_W);
+	std::vector<uint8_t> index_c(maxBatchSize * INPUT_H * INPUT_W);
+	std::vector<std::vector<unsigned char>> color = { {0,0,0}, {255,255,255} }; // class ìˆ˜ ë§Œí¼ ìƒ‰ ì¤€ë¹„
+
+	for (int midx = 0; midx < prob.size(); midx++) {
+		float sum = 0.f;
+		float max = 0.f;
+		int class_index;
+		for (int i = 0; i < class_count; i++)
+		{
+			int â g_idx_i = midx + i * prob.size();
+			float z = exp(outputs[â g_idx_i]);
+			sum += z;
+			if (max < z) {
+				class_index = i;
+				max = z;
+			}
+		}
+		prob[midx] = max / sum;
+		index_c[midx] = class_index;
+		show_img[midx * 3]		= color[class_index][0];
+		show_img[midx * 3 + 1]	= color[class_index][1];
+		show_img[midx * 3 + 2]	= color[class_index][2];
+	}
+
+	cv::Mat frame = cv::Mat(INPUT_H , INPUT_W, CV_8UC3, show_img.data());
+	cv::imshow("result", frame);
+	cv::waitKey(0);
 
 	std::cout << "==================================================" << std::endl;
 
-	// Release stream and buffers ...
+	// Release...
 	cudaStreamDestroy(stream);
 	CHECK(cudaFree(buffers[inputIndex]));
 	CHECK(cudaFree(buffers[outputIndex]));

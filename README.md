@@ -34,7 +34,7 @@
 - TensorRT Int8 -> 40 ms  (0.870 GB) (PTQ)
 
 
-## Semantic Segmentaion model 예제 (진행중)
+## Semantic Segmentaion model 예제 완료
 - unet 모델 (unet.cpp 참고)
 - 512x512x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
 - Pytorch  F32	-> 6621 ms (3.863 GB)
@@ -42,15 +42,15 @@
 - TensorRT F32	-> 4722 ms (1.600 GB)
 - TensorRT F16	-> 1858 ms (1.080 GB) 
 - TensorRT Int8 -> 938 ms  (1.051 GB) (PTQ)
-- 정합성 수정 필요 (준비중)
-- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
-- 전처리 cuda kernel, resize & letterbox padding (준비중)
-- 후처리 cuda kernel, model output to image (준비중)
+- 전처리 (resize & letterbox padding) openCV 사용
+- 후처리 (model output to image)
+- 정합성 완료
 
+
+- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
 
 ## Object Detection model 예제 (준비중)
 - 
-
 
 
 ## 일반적인 TensorRT 모델 만드는 작업 순서 
@@ -65,4 +65,3 @@
 ## reference   
 tensorrtx : https://github.com/wang-xinyu/tensorrtx
 unet : https://github.com/milesial/Pytorch-UNet
-
