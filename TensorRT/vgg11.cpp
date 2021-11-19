@@ -14,7 +14,8 @@
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
 
-REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
+using namespace nvinfer1;
+sample::Logger gLogger;
 
 // stuff we know about the network and the input/output blobs
 static const int INPUT_H = 224;
@@ -24,10 +25,6 @@ static const int INPUT_C = 3;
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
-
-using namespace nvinfer1;
-
-static Logger gLogger;
 
 // Load weights from files shared with TensorRT samples.
 // TensorRT weight files have a simple space delimited format:

@@ -15,7 +15,8 @@
 #include "logging.hpp"	
 #include "calibrator.h"		// ptq
 
-REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
+using namespace nvinfer1;
+sample::Logger gLogger;
 
 // stuff we know about the network and the input/output blobs
 static const int INPUT_H = 224;
@@ -26,10 +27,6 @@ static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
-
-using namespace nvinfer1;
-
-static Logger gLogger;
 
 // Load weights from files shared with TensorRT samples.
 // TensorRT weight files have a simple space delimited format:

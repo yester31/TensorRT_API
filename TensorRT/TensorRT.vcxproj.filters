@@ -15,6 +15,7 @@
       <Filter>calibrate</Filter>
     </ClCompile>
     <ClCompile Include="unet.cpp" />
+    <ClCompile Include="detr_trt.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">

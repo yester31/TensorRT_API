@@ -6,6 +6,7 @@
 - CUDA 11.1
 - TensorRT 8.0.1.6
 - Cudnn 8.2.1
+- Opencv 3.4.5
 ***
 
 ## custom plugin example 예제 완료 
@@ -68,3 +69,4 @@
 ## reference   
 * tensorrtx : <https://github.com/wang-xinyu/tensorrtx>
 * unet : <https://github.com/milesial/Pytorch-UNet>
+* detr : <https://github.com/facebookresearch/detr>

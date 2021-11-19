@@ -2,7 +2,7 @@ import math
 from PIL import Image
 import requests
 import matplotlib.pyplot as plt
-
+import struct
 #import ipywidgets as widgets
 #from IPython.display import display, clear_output
 
@@ -69,8 +69,47 @@ def plot_results(pil_img, prob, boxes):
     plt.axis('off')
     plt.show()
 
+def gen_wts(model, filename):
+    f = open(filename + '.wts', 'w')
+    f.write('{}\n'.format(len(model.state_dict().keys()) + 72))
+    for k, v in model.state_dict().items():
+        if 'in_proj' in k:
+            dim = int(v.size(0) / 3)
+            q_weight = v[:dim].reshape(-1).cpu().numpy()
+            k_weight = v[dim:2*dim].reshape(-1).cpu().numpy()
+            v_weight = v[2*dim:].reshape(-1).cpu().numpy()
+            f.write('{} {} '.format(k + '_q', len(q_weight)))
+            for vv in q_weight:
+                f.write(' ')
+                f.write(struct.pack('>f', float(vv)).hex())
+            f.write('\n')
+
+            f.write('{} {} '.format(k + '_k', len(k_weight)))
+            for vv in k_weight:
+                f.write(' ')
+                f.write(struct.pack('>f', float(vv)).hex())
+            f.write('\n')
+
+            f.write('{} {} '.format(k + '_v', len(v_weight)))
+            for vv in v_weight:
+                f.write(' ')
+                f.write(struct.pack('>f', float(vv)).hex())
+            f.write('\n')
+        else:
+            vr = v.reshape(-1).cpu().numpy()
+            f.write('{} {} '.format(k, len(vr)))
+            for vv in vr:
+                f.write(' ')
+                f.write(struct.pack('>f',float(vv)).hex())
+            f.write('\n')
+    f.close()
+
+
+
 model = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
 model.eval()
+
+gen_wts(model, "detr")
 
 url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
 im = Image.open(requests.get(url, stream=True).raw)

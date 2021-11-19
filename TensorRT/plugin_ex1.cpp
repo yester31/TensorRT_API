@@ -10,13 +10,9 @@
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
 
-REGISTER_TENSORRT_PLUGIN(PreprocessPluginV2Creator);
 using namespace nvinfer1;
+sample::Logger gLogger;
 
-// TensorRT logger ¼±¾ð
-static Logger gLogger;
-
-//void plugin_ex1()
 void main() 
 {
 	std::cout << "===== custom plugin example start =====" << std::endl;
