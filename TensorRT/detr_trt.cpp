@@ -27,8 +27,8 @@ const std::map<RESNETTYPE, std::vector<int>> num_blocks_per_stage = {{R18, {2, 2
 
 // 1 / math.sqrt(head_dim) https://github.com/pytorch/pytorch/blob/master/torch/csrc/api/include/torch/nn/functional/activation.h#623
 static const float SCALING = 0.17677669529663687;
-static const int INPUT_H = 800;
-static const int INPUT_W = 1066;
+static const int INPUT_H = 500;
+static const int INPUT_W = 500;
 static const int INPUT_C = 3;
 static const int NUM_CLASS = 92;  // include background
 static const float SCALING_ONE = 1.0;
@@ -43,6 +43,8 @@ static const int NUM_DECODE_LAYERS = 6;
 static const int NUM_QUERIES = 100;
 static const float SCORE_THRESH = 0.5;
 static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+
+static const int temp_output_size = 600 * 256;
 
 const char* INPUT_BLOB_NAME = "images";
 const std::vector<std::string> OUTPUT_NAMES = { "scores", "boxes" };
@@ -69,22 +71,23 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 
 	std::unordered_map<std::string, Weights> weightMap;
-	loadWeights("../detr/detr.wts", weightMap);
-	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
+	loadWeights("../DETR_py/detr.wts", weightMap);
 
 	// build network
-	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W });
+	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ INPUT_C, INPUT_H, INPUT_W });
 	assert(data);
 
-	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 1 };// Custom(preprocess) plugin 사용하기
+	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 1, {0.485, 0.456, 0.406}, {0.229, 0.224, 0.225} };// Custom(preprocess) plugin 사용하기
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
 	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin 생성
 	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network 객체에 custom(preprocess) plugin을 사용하여 custom(preprocess) 레이어 추가
 	preprocess_layer->setName("[preprocess_layer]"); // layer 이름 설정
 
 	// backbone
-	auto features = BuildResNet(network, weightMap, *data, R50, 64, 64, 256);
-	ITensor* pos_embed = PositionEmbeddingSine(network, weightMap, *features, 128);
+	auto features = BuildResNet(network, weightMap, *preprocess_layer->getOutput(0), R50, 64, 64, 256);
+
+	ITensor* pos_embed = PositionEmbeddingSine(network, weightMap, *features, 128, 10000);
+	//network->markOutput(*pos_embed); // 정합성 확인 완료
 	auto input_proj = network->addConvolutionNd(*features, D_MODEL, DimsHW{ 1, 1 }, weightMap["input_proj.weight"], weightMap["input_proj.bias"]);
 	assert(input_proj);
 	input_proj->setStrideNd(DimsHW{ 1, 1 });
@@ -92,20 +95,25 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	assert(flatten);
 	flatten->setReshapeDimensions(Dims4{ input_proj->getOutput(0)->getDimensions().d[0], -1, 1, 1 });
 	flatten->setSecondTranspose(Permutation{ 1, 0, 2, 3 });
+	//network->markOutput(*flatten->getOutput(0));// 정합성 확인 완료
 
 	auto out1 = Transformer(network, weightMap, "transformer", *flatten->getOutput(0), *pos_embed, NUM_QUERIES, NUM_ENCODE_LAYERS, NUM_DECODE_LAYERS, D_MODEL, NHEAD, DIM_FEEDFORWARD);
-	std::vector<ITensor*> results = Predict(network, weightMap, *out1);
+	network->markOutput(*out1); // encoder 까지 정합성 확인 완료
+
+	// decoder 부분 정합성 체크 필요 
+
+	//std::vector<ITensor*> results = Predict(network, weightMap, *out1);
 
 	// build output
-	for (int i = 0; i < results.size(); i++) {
-		network->markOutput(*results[i]);
-		results[i]->setName(OUTPUT_NAMES[i].c_str());
-	}
-
+	//for (int i = 0; i < results.size(); i++) {
+	//	network->markOutput(*results[i]);
+	//	results[i]->setName(OUTPUT_NAMES[i].c_str());
+	//}
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(16 * (1 << 20));  // 16MB
+	config->setMaxWorkspaceSize(18 * (1 << 23));  // 16MB
+	//config->setMaxWorkspaceSize(1ULL << 30);  //
 	//config->clearFlag(BuilderFlag::kTF32);
 
 	if (precision_mode == 16) {
@@ -124,20 +132,22 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;
 	}
 	std::cout << "Building engine, please wait for a while..." << std::endl;
-	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
+	//ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
+	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-	IHostMemory* model_stream = engine->serialize();
+	//IHostMemory* model_stream = engine;
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
 		//return -1;
 	}
-	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
+	//p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
-	model_stream->destroy();
+	//model_stream->destroy();
 	engine->destroy();
 	network->destroy();
 
@@ -150,8 +160,10 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 int main()
 {
+	std::cout << (18 * (1 << 23)) << std::endl;
+
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "detr";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
@@ -166,13 +178,13 @@ int main()
 	}
 
 	if (!((serialize == false)/*Serialize 강제화 값*/ == (exist_engine == true) /*resnet18.engine 파일이 있는지 유무*/)) {
-		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성
+		std::cout << "===== Create Engine file start =====" << std::endl << std::endl; // 새로운 엔진 생성
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();
 		createEngine(maxBatchSize, builder, config, DataType::kFLOAT, engine_file_path); // *** Trt 모델 만들기 ***
 		builder->destroy();
 		config->destroy();
-		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성 완료
+		std::cout << "===== Create Engine file finish =====" << std::endl << std::endl; // 새로운 엔진 생성 완료
 	}
 
 	// 2) engine file 로드 하기 
@@ -203,7 +215,8 @@ int main()
 	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C, 0);
 	void *data_d, *scores_d, *boxes_d;
 	CHECK(cudaMalloc(&data_d, maxBatchSize * INPUT_H * INPUT_W * INPUT_C * sizeof(uint8_t)));
-	CHECK(cudaMalloc(&scores_d, maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float)));
+	//CHECK(cudaMalloc(&scores_d, maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float)));
+	CHECK(cudaMalloc(&scores_d, maxBatchSize * temp_output_size * sizeof(float)));
 	CHECK(cudaMalloc(&boxes_d, maxBatchSize * NUM_QUERIES * 4 * sizeof(float)));
 	std::vector<float> scores_h(maxBatchSize * NUM_QUERIES * NUM_CLASS);
 	std::vector<float> boxes_h(maxBatchSize * NUM_QUERIES * 4);
@@ -211,7 +224,7 @@ int main()
 	std::vector<float*> outputs = { scores_h.data(), boxes_h.data() };
 
 	// 4) 입력으로 사용할 이미지 준비하기 (resize & letterbox padding) openCV 사용
-	std::string img_dir = "../detr/data";
+	std::string img_dir = "../DETR_py/data";
 	std::vector<std::string> file_names;
 	if (SearchFile(img_dir.c_str(), file_names) < 0) { // 이미지 파일 찾기
 		std::cerr << "[ERROR] Data search error" << std::endl;
@@ -222,35 +235,9 @@ int main()
 	cv::Mat ori_img;
 	for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
 		cv::Mat ori_img = cv::imread(file_names[idx]);
-		int ori_w = ori_img.cols;
-		int ori_h = ori_img.rows;
-		if (ori_h == ori_w) { // 입력이미지가 정사각형일 경우
-			cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
-			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_AREA); // 모델 사이즈로 리사이즈
-			memcpy(input.data(), img_r.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
-		}
-		else {
-			int new_h, new_w;
-			if (ori_w >= ori_h) {
-				new_h = (int)(ori_h * ((float)INPUT_W / ori_w));
-				new_w = INPUT_W;
-			}
-			else {
-				new_h = INPUT_H;
-				new_w = (int)(ori_w * ((float)INPUT_H / ori_h));
-			}
-			cv::Mat img_r(new_h, new_w, CV_8UC3);
-			//cv::resize(ori_img, img_r, img_r.size(), cv::INTER_AREA); // INTER_AREA 알고리즘 에러 (c 와 python 결과 불일치)
-			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // 정합성 일치
-
-			int tb = (int)((INPUT_H - new_h) / 2);
-			int bb = ((new_h % 2) == 1) ? tb + 1 : tb;
-			int lb = (int)((INPUT_W - new_w) / 2);
-			int rb = ((new_w % 2) == 1) ? lb + 1 : lb;
-			cv::Mat img_p(INPUT_H, INPUT_W, CV_8UC3);
-			cv::copyMakeBorder(img_r, img_p, tb, bb, lb, rb, cv::BORDER_CONSTANT, cv::Scalar(128, 128, 128));
-			memcpy(input.data(), img_p.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
-		}
+		cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
+		cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR);
+		memcpy(input.data(), img_r.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
 	}
 	//std::ofstream ofs("../Validation_py/trt_1", std::ios::binary);
 	//if (ofs.is_open())
@@ -268,10 +255,21 @@ int main()
 	CHECK(cudaStreamCreate(&stream));
 	CHECK(cudaMemcpyAsync(buffers[0], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 	context->enqueue(maxBatchSize, buffers.data(), stream, nullptr);
+	
+	cudaStreamSynchronize(stream);
+	std::vector<float> gpuBuffer(maxBatchSize * temp_output_size);
+	cudaMemcpy(gpuBuffer.data(), buffers[1], gpuBuffer.size() * sizeof(float), cudaMemcpyDeviceToHost);
+	std::ofstream ofs("../Validation_py/trt_3", std::ios::binary);
+	if (ofs.is_open())
+		ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(float));
+	ofs.close();
+	std::exit(0);
+
+	//CHECK(cudaMemcpyAsync(scores_h.data(), buffers[1], maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	CHECK(cudaMemcpyAsync(outputs[0], buffers[1], maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	CHECK(cudaMemcpyAsync(outputs[1], buffers[2], maxBatchSize * NUM_QUERIES * 4 * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
-	//tofile(outputs, "../Validation_py/trt");
+	//tofile(scores_h, "../Validation_py/trt");
 	//std::exit(0);
 
 	// 5) Inference 수행  
@@ -565,7 +563,7 @@ ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::unordered_map<s
 	std::vector<std::vector<float>> x_embed(h, sub_embed);
 
 	// normalize
-	float eps = 1e-6, scale = 2.0 * 3.1415926;
+	float eps = 1e-6, scale = 6.2831853071;
 	for (int i = 0; i < h; i++) {
 		for (int j = 0; j < w; j++) {
 			y_embed[i][j] = y_embed[i][j] / (h + eps) * scale;
@@ -730,11 +728,15 @@ ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::unordered_m
 ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int d_model, int nhead, int dim_feedforward) {
 	auto pos_embed = network->addElementWise(src, pos, ElementWiseOperation::kSUM);
 	assert(pos_embed);
+	//return pos_embed->getOutput(0);// 수정 필요
 
 	ITensor* src2 = MultiHeadAttention(network, weightMap, lname + ".self_attn", *pos_embed->getOutput(0), *pos_embed->getOutput(0), src, d_model, nhead);
+	//return src2;// 수정 필요 (검증 완료)
 
-	auto shortcut1 = network->addElementWise(src, *src2, ElementWiseOperation::kSUM);
+	auto shortcut1 = network->addElementWise(*src2, src, ElementWiseOperation::kSUM);
 	assert(shortcut1);
+	//ITensor* src3 = shortcut1->getOutput(0);
+	//return src3;// 수정 필요
 
 	ITensor* norm1 = LayerNorm(network, *shortcut1->getOutput(0), weightMap, lname + ".norm1");
 
@@ -756,6 +758,7 @@ ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::unordered_map
 
 ITensor* TransformerEncoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int num_layers) {
 	ITensor* out = &src;
+	//num_layers = 1; // 수정 필요
 	for (int i = 0; i < num_layers; i++) {
 		std::string layer_name = lname + ".layers." + std::to_string(i);
 		out = TransformerEncoderLayer(network, weightMap, layer_name, *out, pos);
@@ -815,6 +818,7 @@ ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std:
 
 ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries, int num_encoder_layers, int num_decoder_layers, int d_model, int nhead, int dim_feedforward) {
 	auto memory = TransformerEncoder(network, weightMap, lname + ".encoder", src, pos_embed, num_encoder_layers);
+	//return memory; // 수정 필요
 
 	// construct tgt
 	float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * num_queries * d_model));

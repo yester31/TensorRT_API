@@ -29,8 +29,8 @@ def infer(img, net, half):
     img3 = img2.transpose(2, 0, 1)  # hwc -> chw
     img4 = img3.astype(np.float32)  # uint -> float32
     img4 /= 255  # 1/255
-    #tofile(img4, "../Validation_py/py_2")
-    #exit(0)
+    tofile(img4, "../Validation_py/py_0")
+    exit(0)
     img5 = torch.from_numpy(img4)  # numpy -> tensor
     if half:
         img5 = img5.half()

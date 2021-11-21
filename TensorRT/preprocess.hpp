@@ -8,6 +8,8 @@ struct Preprocess {
 	int H;
 	int W;
 	int preproc_type;
+	float mean[3];
+	float std[3];
 };
 
 namespace nvinfer1
@@ -63,33 +65,50 @@ namespace nvinfer1
 		{
 			uint8_t* input = (uint8_t*)inputs[0];
 			float* output = (float*)outputs[0];
-
+			std::vector<float> mean_std(6);
 			const int H = mPreprocess.H;
 			const int W = mPreprocess.W;
 			const int C = mPreprocess.C;
 			int p_type = mPreprocess.preproc_type;
-		
+			//std::cout << "preproc_type : " << p_type  << std::endl;
+
 			switch (p_type) {
 				case 0: // vgg11, resnet18, unet
 					void preprocess_cu_0(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
 					preprocess_cu_0(output, input, batchSize, H, W, C, stream);
 					break; 
 				case 1: // detr
-					void preprocess_cu_1(float* output, unsigned char*input, int batchSize, int height, int width, int channel, cudaStream_t stream);
-					preprocess_cu_1(output, input, batchSize, H, W, C, stream);
+					void preprocess_cu_1(float* output, unsigned char*input, int batchSize, int height, int width, int channel, std::vector<float> &mean_std, cudaStream_t stream);
+					memcpy(mean_std.data(), mPreprocess.mean, 3 * sizeof(float));
+					memcpy(mean_std.data() + 3, mPreprocess.std, 3 * sizeof(float));
+					preprocess_cu_1(output, input, batchSize, H, W, C, mean_std, stream);
 					break; 
 				default: 
 					std::cout << "Unknown"; 
 					break; 
 			}
 
-			//int count = batchSize* H* W* C;
+			// 출력 검증
+			//cudaDeviceSynchronize();
+			//int count = batchSize * H * W * C;
 			//std::cout << "count : " << count << std::endl;
 			//std::vector<float> gpuBuffer(count);
 			//cudaMemcpy(gpuBuffer.data(), output, gpuBuffer.size() * sizeof(float), cudaMemcpyDeviceToHost);
-			//std::ofstream ofs("../Validation_py/trt_2", std::ios::binary);
+			//std::ofstream ofs("../Validation_py/trt_0", std::ios::binary);
 			//if (ofs.is_open())
 			//	ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(float));
+			//ofs.close();
+			//std::exit(0);
+
+			// 입력 검증
+			//cudaDeviceSynchronize();
+			//int count = batchSize * H * W * C;
+			//std::cout << "count : " << count << std::endl;
+			//std::vector<uint8_t> gpuBuffer(count);
+			//cudaMemcpy(gpuBuffer.data(), input, gpuBuffer.size() * sizeof(uint8_t), cudaMemcpyDeviceToHost);
+			//std::ofstream ofs("../Validation_py/trt_1", std::ios::binary);
+			//if (ofs.is_open())
+			//	ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(uint8_t));
 			//ofs.close();
 			//std::exit(0);
 
@@ -150,7 +169,7 @@ namespace nvinfer1
 
 		IPluginV2Ext* clone() const noexcept override
 		{
-			auto* plugin = new PreprocessPluginV2(*this);
+			PreprocessPluginV2* plugin = new PreprocessPluginV2(*this);
 			return plugin;
 		}
 

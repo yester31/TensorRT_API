@@ -4,7 +4,7 @@
 - CPU i7-11375H
 - GPU RTX-3060
 - CUDA 11.1
-- TensorRT 8.0.1.6
+- TensorRT 8.0.3.4 (bug) -> 8.2.0.6 (변경) 
 - Cudnn 8.2.1
 - Opencv 3.4.5
 ***
@@ -46,15 +46,19 @@
 - 전처리 (resize & letterbox padding) openCV 사용
 - 후처리 (model output to image)
 - 정합성 완료
-- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
 ***
 
-## Object Detection model 예제 (준비중)
-- DETR 모델 (준비중)
+## Object Detection model 예제 (진행중)
+- DETR 모델 (detr_trt.cpp)
+- preprocess 기능 추가 (mean std 정규화 기능)
+- Transformer encoder 까지 정합성 확인
+
 ***
+
+- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
 
 ## C TensoRT 모델 Python에서 불러오기 예제 (준비중)
-- 
+-
 ***
 
 ## 일반적인 TensorRT 모델 만드는 작업 순서 

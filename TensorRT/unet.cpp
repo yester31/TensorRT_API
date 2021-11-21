@@ -189,7 +189,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W });
 	assert(data);
 
-	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin 사용하기
+	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 1 , {0,0,0} , {1,1,1} };// Custom(preprocess) plugin 사용하기
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
 	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin 생성
 	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network 객체에 custom(preprocess) plugin을 사용하여 custom(preprocess) 레이어 추가
@@ -258,7 +258,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 int main()
 {
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "unet";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);

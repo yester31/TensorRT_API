@@ -3,6 +3,7 @@ from PIL import Image
 import requests
 import matplotlib.pyplot as plt
 import struct
+import cv2
 #import ipywidgets as widgets
 #from IPython.display import display, clear_output
 
@@ -36,7 +37,7 @@ COLORS = [[0.000, 0.447, 0.741], [0.850, 0.325, 0.098], [0.929, 0.694, 0.125],
 
 # standard PyTorch mean-std input image normalization
 transform = T.Compose([
-    T.Resize(800),
+    #T.Resize(800),
     T.ToTensor(),
     T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
@@ -104,21 +105,31 @@ def gen_wts(model, filename):
             f.write('\n')
     f.close()
 
-
-
 model = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
 model.eval()
 
-gen_wts(model, "detr")
+#gen_wts(model, "detr")
+if 0:  # LIST 형태 웨이트 파일 생성 로직
+    weights = model.state_dict()
+    weight_list = [(key, value) for (key, value) in weights.items()]
+    for idx in range(len(weight_list)):
+        key, value = weight_list[idx]
+        if "num_batches_tracked" in key:
+            print(idx, "--------------------")
+            continue
+        print(idx, key, value.shape)
+
 
 url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
 im = Image.open(requests.get(url, stream=True).raw)
 
-# mean-std normalize the input image (batch-size: 1)
-img = transform(im).unsqueeze(0)
-
+img = cv2.imread('data/000000039769.jpg')  # image file load
+img0 = cv2.resize(img, dsize=(500, 500), interpolation=cv2.INTER_LINEAR)
+img1 = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
+img2 = Image.fromarray(img1) # convert from openCV2 to PIL
+img3 = transform(img2).unsqueeze(0)# mean-std normalize the input image (batch-size: 1)
 # propagate through the model
-outputs = model(img)
+outputs = model(img3)
 
 # keep only predictions with 0.7+ confidence
 probas = outputs['pred_logits'].softmax(-1)[0, :, :-1]
