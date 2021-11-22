@@ -19,11 +19,12 @@
         }\
     } while (0)
 
-Int8EntropyCalibrator2::Int8EntropyCalibrator2(int batchsize, int input_w, int input_h, const char* img_dir, const char* calib_table_name, const char* input_blob_name, bool read_cache)
+Int8EntropyCalibrator2::Int8EntropyCalibrator2(int batchsize, int input_w, int input_h, int process_type, const char* img_dir, const char* calib_table_name, const char* input_blob_name, bool read_cache)
 	: batchsize_(batchsize)
 	, input_w_(input_w)
 	, input_h_(input_h)
 	, img_idx_(0)
+	, process_type_(process_type)
 	, img_dir_(img_dir)
 	, calib_table_name_(calib_table_name)
 	, input_blob_name_(input_blob_name)
@@ -50,21 +51,46 @@ bool Int8EntropyCalibrator2::getBatch(void* bindings[], const char* names[], int
 		return false;
 	}
 
-	std::vector<cv::Mat> input_imgs_;
-	for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
-		std::cout << img_files_[i] << "  " << i << std::endl;
-		cv::Mat temp = cv::imread(img_dir_ + img_files_[i]);
-		if (temp.empty()) {
-			std::cerr << "Fatal error: image cannot open!" << std::endl;
-			return false;
+	if (process_type_ == 1) { // detr
+		std::vector<float> input_imgs_(input_count_, 0);
+		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
+			std::cout << img_files_[i] << "  " << i << std::endl;
+			cv::Mat temp = cv::imread(img_dir_ + img_files_[i]);
+			if (temp.empty()) {
+				std::cerr << "Fatal error: image cannot open!" << std::endl;
+				return false;
+			}
+			preprocessImg(temp, input_w_, input_h_);
+			for (int c = 0; c < 3; c++) {
+				for (int h = 0; h < input_h_; h++) {
+					for (int w = 0; w < input_w_; w++) {
+						input_imgs_[(i - img_idx_)*input_w_*input_h_ * 3 +
+							c * input_h_ * input_w_ + h * input_w_ + w] = temp.at<cv::Vec3f>(h, w)[c];
+					}
+				}
+			}
 		}
-		cv::Mat pr_img = preprocess_img_cali(temp, input_w_, input_h_);
-		input_imgs_.push_back(pr_img);
-	}
-	img_idx_ += batchsize_;
-	cv::Mat blob = cv::dnn::blobFromImages(input_imgs_, 1.0, cv::Size(input_w_, input_h_), cv::Scalar(104, 117, 123), false, false);
+		img_idx_ += batchsize_;
 
-	CHECK(cudaMemcpy(device_input_, blob.ptr<float>(0), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+	}
+	else { // vgg, resnet, unet
+		std::vector<cv::Mat> input_imgs_;
+		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
+			std::cout << img_files_[i] << "  " << i << std::endl;
+			cv::Mat temp = cv::imread(img_dir_ + img_files_[i]);
+			if (temp.empty()) {
+				std::cerr << "Fatal error: image cannot open!" << std::endl;
+				return false;
+			}
+			cv::Mat pr_img = preprocess_img_cali(temp, input_w_, input_h_);
+			input_imgs_.push_back(pr_img);
+		}
+		img_idx_ += batchsize_;
+		cv::Mat blob = cv::dnn::blobFromImages(input_imgs_, 1.0, cv::Size(input_w_, input_h_), cv::Scalar(104, 117, 123), false, false);
+		CHECK(cudaMemcpy(device_input_, blob.ptr<float>(0), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+	}
+
 	assert(!strcmp(names[0], input_blob_name_));
 	bindings[0] = device_input_;
 	return true;

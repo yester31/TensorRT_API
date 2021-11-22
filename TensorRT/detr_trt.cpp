@@ -44,8 +44,6 @@ static const int NUM_QUERIES = 100;
 static const float SCORE_THRESH = 0.5;
 static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
-static const int temp_output_size = 600 * 256;
-
 const char* INPUT_BLOB_NAME = "images";
 const std::vector<std::string> OUTPUT_NAMES = { "scores", "boxes" };
 
@@ -65,7 +63,7 @@ ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map
 ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
 ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries = 100, int num_encoder_layers = 6, int num_decoder_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
 ITensor* MLP(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, int num_layers = 3, int hidden_dim = 256, int output_dim = 4);
-std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& src);
+std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor* src);
 
 void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName) {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
@@ -85,9 +83,8 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// backbone
 	auto features = BuildResNet(network, weightMap, *preprocess_layer->getOutput(0), R50, 64, 64, 256);
-
 	ITensor* pos_embed = PositionEmbeddingSine(network, weightMap, *features, 128, 10000);
-	//network->markOutput(*pos_embed); // 정합성 확인 완료
+
 	auto input_proj = network->addConvolutionNd(*features, D_MODEL, DimsHW{ 1, 1 }, weightMap["input_proj.weight"], weightMap["input_proj.bias"]);
 	assert(input_proj);
 	input_proj->setStrideNd(DimsHW{ 1, 1 });
@@ -95,25 +92,39 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	assert(flatten);
 	flatten->setReshapeDimensions(Dims4{ input_proj->getOutput(0)->getDimensions().d[0], -1, 1, 1 });
 	flatten->setSecondTranspose(Permutation{ 1, 0, 2, 3 });
-	//network->markOutput(*flatten->getOutput(0));// 정합성 확인 완료
-
 	auto out1 = Transformer(network, weightMap, "transformer", *flatten->getOutput(0), *pos_embed, NUM_QUERIES, NUM_ENCODE_LAYERS, NUM_DECODE_LAYERS, D_MODEL, NHEAD, DIM_FEEDFORWARD);
-	network->markOutput(*out1); // encoder 까지 정합성 확인 완료
 
-	// decoder 부분 정합성 체크 필요 
+	auto class_embed = network->addFullyConnected(*out1, NUM_CLASS, weightMap["class_embed.weight"], weightMap["class_embed.bias"]);
+	assert(class_embed);
+	auto class_softmax = network->addSoftMax(*class_embed->getOutput(0));
+	assert(class_softmax);
+	class_softmax->setAxes(2);
+	ITensor* softmax_t = class_softmax->getOutput(0);
 
-	//std::vector<ITensor*> results = Predict(network, weightMap, *out1);
+	auto shuffle_l = network->addShuffle(*softmax_t);
+	Dims2 shape_dims_0(softmax_t->getDimensions().d[0], softmax_t->getDimensions().d[1]);
+	shuffle_l->setReshapeDimensions(shape_dims_0);
+	ITensor* shuffle_t = shuffle_l->getOutput(0);
+
+	auto slice = network->addSlice(*shuffle_t, Dims2(0, 0), Dims2(shuffle_t->getDimensions().d[0], shuffle_t->getDimensions().d[1] - 1), Dims2(1, 1));
+	ITensor* slice_t = slice->getOutput(0); // [100,92] ==> [100,91]
+
+	ITensor* bbox = MLP(network, weightMap, "bbox_embed.layers", *out1);
+	auto bbox_sig = network->addActivation(*bbox, ActivationType::kSIGMOID);
+	assert(bbox_sig);
+	std::vector<ITensor*> results = { slice_t, bbox_sig->getOutput(0) };
 
 	// build output
-	//for (int i = 0; i < results.size(); i++) {
-	//	network->markOutput(*results[i]);
-	//	results[i]->setName(OUTPUT_NAMES[i].c_str());
-	//}
+	for (int i = 0; i < results.size(); i++) {
+		network->markOutput(*results[i]);
+		results[i]->setName(OUTPUT_NAMES[i].c_str());
+	}
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(18 * (1 << 23));  // 16MB
-	//config->setMaxWorkspaceSize(1ULL << 30);  //
+	//config->setMaxWorkspaceSize(18 * (1 << 23));  // 18MB
+	config->setMaxWorkspaceSize(28 * (1 << 23));  // 28MB
+	//config->setMaxWorkspaceSize(1ULL << 30);
 	//config->clearFlag(BuilderFlag::kTF32);
 
 	if (precision_mode == 16) {
@@ -125,29 +136,26 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H, "../data_calib/", "detr_int8_calib.table", INPUT_BLOB_NAME);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 1, "../data_calib2/", "detr_int8_calib300.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}
 	else {
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;
 	}
+
 	std::cout << "Building engine, please wait for a while..." << std::endl;
-	//ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
 	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-	//IHostMemory* model_stream = engine;
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
 		//return -1;
 	}
 	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
-	//p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
-	//model_stream->destroy();
 	engine->destroy();
 	network->destroy();
 
@@ -160,17 +168,15 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 int main()
 {
-	std::cout << (18 * (1 << 23)) << std::endl;
-
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "detr";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
 
 	// 1) engine file 만들기 
 	// 강제 만들기 true면 무조건 다시 만들기
-	// 강제 만들기 false면, engine 파일 있으면 안만들고 
+	// 강제 만들기 false면, engine 파일 있으면 안만들고
 	//					   engine 파일 없으면 만듬
 	bool exist_engine = false;
 	if ((access(engine_file_path, 0) != -1)) {
@@ -215,10 +221,9 @@ int main()
 	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C, 0);
 	void *data_d, *scores_d, *boxes_d;
 	CHECK(cudaMalloc(&data_d, maxBatchSize * INPUT_H * INPUT_W * INPUT_C * sizeof(uint8_t)));
-	//CHECK(cudaMalloc(&scores_d, maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float)));
-	CHECK(cudaMalloc(&scores_d, maxBatchSize * temp_output_size * sizeof(float)));
+	CHECK(cudaMalloc(&scores_d, maxBatchSize * NUM_QUERIES * (NUM_CLASS - 1) * sizeof(float)));
 	CHECK(cudaMalloc(&boxes_d, maxBatchSize * NUM_QUERIES * 4 * sizeof(float)));
-	std::vector<float> scores_h(maxBatchSize * NUM_QUERIES * NUM_CLASS);
+	std::vector<float> scores_h(maxBatchSize * NUM_QUERIES * (NUM_CLASS - 1));
 	std::vector<float> boxes_h(maxBatchSize * NUM_QUERIES * 4);
 	std::vector<void*> buffers = { data_d, scores_d, boxes_d };
 	std::vector<float*> outputs = { scores_h.data(), boxes_h.data() };
@@ -233,9 +238,9 @@ int main()
 		std::cout << "Total number of images : " << file_names.size() << std::endl << std::endl;
 	}
 	cv::Mat ori_img;
+	cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
 	for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
-		cv::Mat ori_img = cv::imread(file_names[idx]);
-		cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
+		ori_img = cv::imread(file_names[idx]);
 		cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR);
 		memcpy(input.data(), img_r.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
 	}
@@ -255,22 +260,9 @@ int main()
 	CHECK(cudaStreamCreate(&stream));
 	CHECK(cudaMemcpyAsync(buffers[0], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 	context->enqueue(maxBatchSize, buffers.data(), stream, nullptr);
-	
-	cudaStreamSynchronize(stream);
-	std::vector<float> gpuBuffer(maxBatchSize * temp_output_size);
-	cudaMemcpy(gpuBuffer.data(), buffers[1], gpuBuffer.size() * sizeof(float), cudaMemcpyDeviceToHost);
-	std::ofstream ofs("../Validation_py/trt_3", std::ios::binary);
-	if (ofs.is_open())
-		ofs.write((const char*)gpuBuffer.data(), gpuBuffer.size() * sizeof(float));
-	ofs.close();
-	std::exit(0);
-
-	//CHECK(cudaMemcpyAsync(scores_h.data(), buffers[1], maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float), cudaMemcpyDeviceToHost, stream));
-	CHECK(cudaMemcpyAsync(outputs[0], buffers[1], maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float), cudaMemcpyDeviceToHost, stream));
+	CHECK(cudaMemcpyAsync(outputs[0], buffers[1], maxBatchSize * NUM_QUERIES * (NUM_CLASS - 1) * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	CHECK(cudaMemcpyAsync(outputs[1], buffers[2], maxBatchSize * NUM_QUERIES * 4 * sizeof(float), cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
-	//tofile(scores_h, "../Validation_py/trt");
-	//std::exit(0);
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
@@ -279,7 +271,7 @@ int main()
 
 		CHECK(cudaMemcpyAsync(buffers[0], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 		context->enqueue(maxBatchSize, buffers.data(), stream, nullptr);
-		CHECK(cudaMemcpyAsync(outputs[0], buffers[1], maxBatchSize * NUM_QUERIES * NUM_CLASS * sizeof(float), cudaMemcpyDeviceToHost, stream));
+		CHECK(cudaMemcpyAsync(outputs[0], buffers[1], maxBatchSize * NUM_QUERIES * (NUM_CLASS - 1) * sizeof(float), cudaMemcpyDeviceToHost, stream));
 		CHECK(cudaMemcpyAsync(outputs[1], buffers[2], maxBatchSize * NUM_QUERIES * 4 * sizeof(float), cudaMemcpyDeviceToHost, stream));
 		cudaStreamSynchronize(stream);
 
@@ -294,15 +286,48 @@ int main()
 	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
 
 	// 이미지 출력 로직
-	std::vector<uint8_t> show_img(maxBatchSize * INPUT_C * INPUT_H * INPUT_W);
-	std::vector<float> prob(maxBatchSize * INPUT_H * INPUT_W);
-	std::vector<uint8_t> index_c(maxBatchSize * INPUT_H * INPUT_W);
-	std::vector<std::vector<unsigned char>> color = { {0,0,0}, {255,255,255} }; // class 수 만큼 색 준비
+	//prob [100, 91]
+	//box  [100, 4]
+	std::vector<std::pair<float, int>> items(NUM_QUERIES);
+	int offset = (NUM_CLASS - 1);
+	for (int i = 0; i < NUM_QUERIES; i++) { // 100
+		float* pred = scores_h.data() + i * offset;
+		int label = -1;
+		float score = -1;
+		for (int j = 0; j < offset; j++) { // 91
+			if (score < pred[j]) {
+				label = j + i * offset;
+				score = pred[j];
+			}
+		}
+		items[i].first = score;
+		items[i].second = label;
+	}
+	sort(items.rbegin(), items.rend());
+	std::vector<std::vector<float>> COLORS = { {0.000, 0.447, 0.741}, {0.850, 0.325, 0.098}, {0.929, 0.694, 0.125},
+		{0.494, 0.184, 0.556}, {0.466, 0.674, 0.188}, {0.301, 0.745, 0.933} };
 
-	cv::Mat frame = cv::Mat(INPUT_H, INPUT_W, CV_8UC3, show_img.data());
-	cv::imshow("result", frame);
+	for (int idx = 0; idx < 5 && items[idx].first > 0.9; idx++) {
+		int ind = items[idx].second / offset;
+		int label = items[idx].second % offset;
+		float cx = boxes_h[ind * 4];
+		float cy = boxes_h[ind * 4 + 1];
+		float w = boxes_h[ind * 4 + 2];
+		float h = boxes_h[ind * 4 + 3];
+		float x1 = (cx - w / 2.0) * ori_img.cols;
+		float y1 = (cy - h / 2.0) * ori_img.rows;
+		float x2 = (cx + w / 2.0) * ori_img.cols;
+		float y2 = (cy + h / 2.0) * ori_img.rows;
+
+		cv::Rect rec(x1, y1, x2 - x1, y2 - y1);
+		cv::Scalar color(int(COLORS[idx%COLORS.size()][2]*100), int(COLORS[idx%COLORS.size()][1] * 100), int(COLORS[idx%COLORS.size()][0] * 100));
+		cv::rectangle(ori_img, rec, color, 1.5);
+		cv::putText(ori_img, COCO_names[label].c_str(), cv::Point(rec.x, rec.y - 1), cv::FONT_HERSHEY_PLAIN, 0.8, color, 1.5);
+		printf("      %d %4d prob=%.5f %s\n", idx, label, items[idx].first, COCO_names[label].c_str());
+	}
+	// items [100, 2] (sorted) (label = second%offset, box_location = second/offset) 
+	cv::imshow("result", ori_img);
 	cv::waitKey(0);
-
 	std::cout << "==================================================" << std::endl;
 
 	// Release...
@@ -319,7 +344,7 @@ int main()
 
 
 void loadWeights(const std::string file, std::unordered_map<std::string, Weights>& weightMap) {
-	std::cout << "Loading weights: " << file << std::endl;
+	std::cout << "Loading weights: " << file << std::endl << std::endl;
 
 	// Open weights file
 	std::ifstream input(file);
@@ -674,11 +699,7 @@ ITensor* MultiHeadAttention(INetworkDefinition *network, std::unordered_map<std:
 	attn_shuffle->setFirstTranspose(Permutation{ 1, 0, 2 });
 	attn_shuffle->setReshapeDimensions(Dims4{ tgt_len, -1, 1, 1 });
 
-	auto linear_attn = network->addFullyConnected(
-		*attn_shuffle->getOutput(0),
-		embed_dim,
-		weightMap[lname + ".out_proj.weight"],
-		weightMap[lname + ".out_proj.bias"]);
+	auto linear_attn = network->addFullyConnected(*attn_shuffle->getOutput(0),embed_dim,weightMap[lname + ".out_proj.weight"],weightMap[lname + ".out_proj.bias"]);
 	assert(linear_attn);
 
 	return linear_attn->getOutput(0);
@@ -771,6 +792,7 @@ ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map
 	assert(pos_embed);
 
 	ITensor* tgt2 = MultiHeadAttention(network, weightMap, lname + ".self_attn", *pos_embed->getOutput(0), *pos_embed->getOutput(0), tgt);
+	//return tgt2; // 정합성 확인 완료
 
 	auto shortcut1 = network->addElementWise(tgt, *tgt2, ElementWiseOperation::kSUM);
 	assert(shortcut1);
@@ -808,12 +830,21 @@ ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map
 
 ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers, int d_model, int nhead, int dim_feedforward) {
 	ITensor* out = &tgt;
+	//std::vector<ITensor*> keeps;
 	for (int i = 0; i < num_layers; i++) {
 		std::string layer_name = lname + ".layers." + std::to_string(i);
 		out = TransformerDecoderLayer(network, weightMap, layer_name, *out, memory, pos, query_pos, d_model, nhead, dim_feedforward);
+		//IShuffleLayer* shuffle = network->addShuffle(*norm);
+		//shuffle->setReshapeDimensions(Dims3{ 1, norm->getDimensions().d[0], norm->getDimensions().d[1] });
+		//ITensor* shuffled = shuffle->getOutput(0);
+		//keeps.push_back(norm);
 	}
 	ITensor* norm = LayerNorm(network, *out, weightMap, lname + ".norm", d_model);
 	return norm;
+	//IConcatenationLayer* concat = network->addConcatenation(keeps.data(), (int)keeps.size());
+	//concat->setAxis(0);
+	//ITensor* data = concat->getOutput(0);
+	//return data;
 }
 
 ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries, int num_encoder_layers, int num_decoder_layers, int d_model, int nhead, int dim_feedforward) {
@@ -857,15 +888,16 @@ ITensor* MLP(INetworkDefinition *network, std::unordered_map<std::string, Weight
 	return out;
 }
 
-std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& src) {
-	auto class_embed = network->addFullyConnected(src, NUM_CLASS, weightMap["class_embed.weight"], weightMap["class_embed.bias"]);
+std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor* src) {
+	auto class_embed = network->addFullyConnected(*src, NUM_CLASS, weightMap["class_embed.weight"], weightMap["class_embed.bias"]);
 	assert(class_embed);
 	auto class_softmax = network->addSoftMax(*class_embed->getOutput(0));
 	assert(class_softmax);
 	class_softmax->setAxes(2);
-	ITensor* bbox = MLP(network, weightMap, "bbox_embed.layers", src);
+	ITensor* bbox = MLP(network, weightMap, "bbox_embed.layers", *src);
 	auto bbox_sig = network->addActivation(*bbox, ActivationType::kSIGMOID);
 	assert(bbox_sig);
-	std::vector<ITensor*> output = { class_softmax->getOutput(0), bbox_sig->getOutput(0) };
+	//std::vector<ITensor*> output = { class_softmax->getOutput(0), bbox_sig->getOutput(0) };
+	std::vector<ITensor*> output = { class_embed->getOutput(0), bbox_sig->getOutput(0) };
 	return output;
 }

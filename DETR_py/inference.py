@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 import struct
 import cv2
+import time
 #import ipywidgets as widgets
 #from IPython.display import display, clear_output
 
@@ -105,8 +106,7 @@ def gen_wts(model, filename):
             f.write('\n')
     f.close()
 
-model = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
-model.eval()
+
 
 #gen_wts(model, "detr")
 if 0:  # LIST 형태 웨이트 파일 생성 로직
@@ -120,22 +120,55 @@ if 0:  # LIST 형태 웨이트 파일 생성 로직
         print(idx, key, value.shape)
 
 
-url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
-im = Image.open(requests.get(url, stream=True).raw)
 
-img = cv2.imread('data/000000039769.jpg')  # image file load
-img0 = cv2.resize(img, dsize=(500, 500), interpolation=cv2.INTER_LINEAR)
-img1 = cv2.cvtColor(img0, cv2.COLOR_BGR2RGB)
-img2 = Image.fromarray(img1) # convert from openCV2 to PIL
-img3 = transform(img2).unsqueeze(0)# mean-std normalize the input image (batch-size: 1)
-# propagate through the model
-outputs = model(img3)
+def infer(img, model, half):
+    img1 = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img2 = Image.fromarray(img1) # convert from openCV2 to PIL
+    img3 = transform(img2).unsqueeze(0)# mean-std normalize the input image (batch-size: 1)
+    if half:
+        img3 = img3.half()
+    # propagate through the model
+    img4 = img3.to('cuda:0')
+    outputs = model(img4)
+    # keep only predictions with 0.7+ confidence
+    probas = outputs['pred_logits'].softmax(-1)[0, :, :-1]
+    return probas, outputs
 
-# keep only predictions with 0.7+ confidence
-probas = outputs['pred_logits'].softmax(-1)[0, :, :-1]
-keep = probas.max(-1).values > 0.9
+def main():
+    half = True
+    model = torch.hub.load('facebookresearch/detr', 'detr_resnet50', pretrained=True)
+    model = model.to('cuda:0')                      # gpu 설정
+    if half:
+        model.half()  # to FP16
+    model.eval()
 
-# convert boxes from [0; 1] to image scales
-bboxes_scaled = rescale_bboxes(outputs['pred_boxes'][0, keep], im.size)
+    url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
+    im = Image.open(requests.get(url, stream=True).raw)
 
-plot_results(im, probas[keep], bboxes_scaled)
+    img = cv2.imread('data/000000039769.jpg')  # image file load
+    img0 = cv2.resize(img, dsize=(500, 500), interpolation=cv2.INTER_LINEAR)
+
+    dur_time = 0
+    iteration = 100
+
+    # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
+    probas, outputs = infer(img0, model, half)
+
+    for i in range(iteration):
+        begin = time.time()
+        probas, outputs = infer(img0, model, half)
+        dur = time.time() - begin
+        dur_time += dur
+        # print('{} dur time : {}'.format(i, dur))
+
+    print('{} iteration time : {} [sec]'.format(iteration, dur_time))
+
+    keep = probas.max(-1).values > 0.9
+    tt = probas.max(-1).values.sort(descending=True)
+    # convert boxes from [0; 1] to image scales
+    bboxes_scaled = rescale_bboxes(outputs['pred_boxes'].cpu().data[0, keep], im.size)
+
+    plot_results(im, probas[keep], bboxes_scaled)
+
+if __name__ == '__main__':
+    main()

@@ -206,7 +206,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H, "../data_calib/", "resnet18_int8_calib.table", INPUT_BLOB_NAME);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,0, "../data_calib/", "resnet18_int8_calib.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}else {
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;

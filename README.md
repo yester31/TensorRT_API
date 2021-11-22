@@ -48,13 +48,20 @@
 - 정합성 완료
 ***
 
-## Object Detection model 예제 (진행중)
-- DETR 모델 (detr_trt.cpp)
+## Object Detection model(ViT) 예제 완료
+- DETR 모델 (detr_trt.cpp) 
+- 500x500x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
+- Pytorch  F32	-> 3703 ms (1.563 GB)
+- Pytorch  F16	-> 3071 ms (1.511 GB)
+- TensorRT F32	-> 1640 ms (1.212 GB)
+- TensorRT F16	->  607 ms (1.091 GB) 
+- TensorRT Int8 ->  530 ms (1.005 GB) (PTQ)
 - preprocess 기능 추가 (mean std 정규화 기능)
-- Transformer encoder 까지 정합성 확인
-
+- 후처리 (detection 결과 출력)
+- 정합성 완료
 ***
 
+- calibration image process (cpp -> cuda kernel) (준비중)
 - fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
 
 ## C TensoRT 모델 Python에서 불러오기 예제 (준비중)

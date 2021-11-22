@@ -5,6 +5,7 @@ x64
 *.wts
 *.weights
 *.engine
+*.table
 C_Tensor
 py
 trt

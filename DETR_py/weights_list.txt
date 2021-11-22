@@ -191,6 +191,7 @@
 
 182 class_embed.weight torch.Size([92, 256])
 183 class_embed.bias torch.Size([92])
+
 184 bbox_embed.layers.0.weight torch.Size([256, 256])
 185 bbox_embed.layers.0.bias torch.Size([256])
 186 bbox_embed.layers.1.weight torch.Size([256, 256])
