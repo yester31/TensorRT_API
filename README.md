@@ -61,11 +61,13 @@
 - 정합성 완료
 ***
 
+## C TensoRT 모델 Python에서 불러오기 예제 (완료)
+- TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>
+***
+
+## 추가 작업 (준비중)
 - calibration image process (cpp -> cuda kernel) (준비중)
 - fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
-
-## C TensoRT 모델 Python에서 불러오기 예제 (준비중)
--
 ***
 
 ## 일반적인 TensorRT 모델 만드는 작업 순서 
