@@ -24,7 +24,7 @@ static const int INPUT_W = INPUT_H;
 static const int INPUT_C = 3;
 static const int class_count = 2;
 static const int OUTPUT_SIZE = INPUT_H * INPUT_W * class_count;
-static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -189,7 +189,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W });
 	assert(data);
 
-	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 1 , {0,0,0} , {1,1,1} };// Custom(preprocess) plugin 사용하기
+	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin 사용하기
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
 	IPluginV2 *preprocess_plugin = preprocess_creator->createPlugin("preprocess_plugin", (PluginFieldCollection*)&preprocess);// Custom(preprocess) plugin 생성
 	IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);// network 객체에 custom(preprocess) plugin을 사용하여 custom(preprocess) 레이어 추가
@@ -206,13 +206,13 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	ILayer* x8 = up(network, weightMap, *x7->getOutput(0), *x2->getOutput(0), 128, 128, 128, "up3");
 	ILayer* x9 = up(network, weightMap, *x8->getOutput(0), *x1->getOutput(0), 64, 64, 64, "up4");
 	ILayer* x10 = outConv(network, weightMap, *x9->getOutput(0), OUTPUT_SIZE, "outc");
-	std::cout << "set name out" << std::endl;
 	x10->getOutput(0)->setName(OUTPUT_BLOB_NAME);
 	network->markOutput(*x10->getOutput(0));
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(16 * (1 << 20));  // 16MB
+	//config->setMaxWorkspaceSize(28 * (1 << 23));  // 16MB
+	config->setMaxWorkspaceSize(1ULL << 30);
 	//config->clearFlag(BuilderFlag::kTF32);
 
 	if (precision_mode == 16) {
@@ -224,27 +224,25 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,0, "../data_calib/", "unet_int8_calib.table", INPUT_BLOB_NAME);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,1, "../data_calib/", "../Int8_calib_table/unet_int8_calib.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}
 	else {
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;
 	}
 	std::cout << "Building engine, please wait for a while..." << std::endl;
-	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
+	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-	IHostMemory* model_stream = engine->serialize();
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
 		//return -1;
 	}
-	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
-	model_stream->destroy();
 	engine->destroy();
 	network->destroy();
 
@@ -258,7 +256,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 int main()
 {
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "unet";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
@@ -334,7 +332,7 @@ int main()
 		int ori_h = ori_img.rows;
 		if (ori_h == ori_w) { // 입력이미지가 정사각형일 경우
 			cv::Mat img_r(INPUT_H, INPUT_W, CV_8UC3);
-			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_AREA); // 모델 사이즈로 리사이즈
+			cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // 모델 사이즈로 리사이즈
 			memcpy(input.data(), img_r.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
 		}
 		else {
@@ -398,8 +396,8 @@ int main()
 
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
-	std::cout << "===============" << engineFileName << "===============" << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
+	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
+	std::cout << iter_count << " th Iteration, Total dur time : " << dur_time << " [milliseconds]" << std::endl;
 	
 	// 이미지 출력 로직
 	std::vector<uint8_t> show_img(maxBatchSize * INPUT_C * INPUT_H * INPUT_W);

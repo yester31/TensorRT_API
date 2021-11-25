@@ -5,7 +5,6 @@ from compare import *
 
 img = cv2.imread('../TestDate/panda0.jpg')
 #img = cv2.resize(img, (224,224))
-#img.tofile('R0')
 img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 img = img.transpose(2, 0, 1)
 img = img.astype(np.float32)

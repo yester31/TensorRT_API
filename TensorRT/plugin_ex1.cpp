@@ -50,7 +50,6 @@ void main()
 	std::cout << "===== Create TensorRT Model =====" << std::endl; // TensorRT 모델 만들기 시작
 	IBuilder* builder = createInferBuilder(gLogger);
 	IBuilderConfig* config = builder->createBuilderConfig();
-	ICudaEngine* engine{ nullptr };
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
 	
 	// 네트워크 구조를 만들기 위해 네트워크 객체 생성
@@ -74,7 +73,7 @@ void main()
 
 	builder->setMaxBatchSize(maxBatchSize); // 모델의 배치 사이즈 설정
 	config->setMaxWorkspaceSize(1 << 22);	// 엔진 생성을 위해 사용할 메모리 공간 설정
-	engine = builder->buildEngineWithConfig(*network, *config); // 엔진 생성(빌드)
+	IHostMemory* engine0 = builder->buildSerializedNetwork(*network, *config); // 엔진 생성(빌드)
 	network->destroy();
 	builder->destroy();
 	config->destroy();
@@ -82,17 +81,35 @@ void main()
 	//==========================================================================================
 
 	// 엔진 serialzie 작업 
-	IHostMemory* model_stream = engine->serialize();
-	std::ofstream p("plugin_test.engine", std::ios::binary);
+	char engineFileName[] = "../Engine/plugin_test.engine";
+	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl;
 	}
-	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
-	model_stream->destroy();
+	p.write(reinterpret_cast<const char*>(engine0->data()), engine0->size());
+	engine0->destroy();
 	std::cout << "===== engine serialzie work done =====" << std::endl;
 	//==========================================================================================
-
+	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;
+	char *trtModelStream{ nullptr };// 저장된 스트림을 저장할 변수
+	size_t size{ 0 };
+	std::cout << "===== Engine file load =====" << std::endl << std::endl;
+	std::ifstream file(engineFileName, std::ios::binary);
+	if (file.good()) {
+		file.seekg(0, file.end);
+		size = file.tellg();
+		file.seekg(0, file.beg);
+		trtModelStream = new char[size];
+		file.read(trtModelStream, size);
+		file.close();
+	}
+	else {
+		std::cout << "[ERROR] Engine file load error" << std::endl;
+	}
+	IRuntime* runtime = createInferRuntime(gLogger);
+	ICudaEngine* engine = runtime->deserializeCudaEngine(trtModelStream, size);
 	IExecutionContext* context = engine->createExecutionContext();
+	delete[] trtModelStream;
 	void* buffers[2]; // 입력값과 출력값을 주고 받기 위해 포인터 변수 생성 
 
 	// 네트워크 생성할때 사용한 입력과 출력의 이름으로 인덱스값 받아 오기 
@@ -118,11 +135,13 @@ void main()
 	//==========================================================================================
 
 	tofile(output, "../Validation_py/C_Preproc_Result"); // 결과값 파일로 출력
+	//../Validation_py/valide_preproc.py 에서 결과 비교 ㄱㄱ
 
 	// 자원 해제 작업
 	cudaStreamDestroy(stream);
 	CHECK(cudaFree(buffers[inputIndex]));
 	CHECK(cudaFree(buffers[outputIndex]));
-	engine->destroy();
 	context->destroy();
+	engine->destroy();
+	runtime->destroy();
 }

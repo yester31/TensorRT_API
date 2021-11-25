@@ -197,24 +197,21 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
 	config->setMaxWorkspaceSize(1 << 20);
-	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
 
+	std::cout << "Building engine, please wait for a while..." << std::endl;
+	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-
-	IHostMemory* model_stream = engine->serialize();
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
-		//return -1;
 	}
-	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
 
-	model_stream->destroy();
-	engine->destroy();
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
+	engine->destroy();
 	network->destroy();
 	// Release host memory
 	for (auto& mem : weightMap)

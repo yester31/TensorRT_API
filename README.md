@@ -1,15 +1,18 @@
 # TensorRT_EX
+
 ## 작업 환경
 - Windows 10 laptop
 - CPU i7-11375H
 - GPU RTX-3060
 - CUDA 11.1
-- TensorRT 8.0.3.4 (bug) -> 8.2.0.6 (변경) 
+- TensorRT 8.0.3.4 (unet)
+- TensorRT 8.2.0.6 (detr) 
 - Cudnn 8.2.1
 - Opencv 3.4.5
+- int8 PTQ용 데이터 COCO val2017 100개 사용
 ***
 
-## custom plugin example 예제 완료 
+## custom plugin 
 - 전처리 기능을 수행하는 레이어(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1] (Normalize))
 - plugin_ex1.cpp (plugin 예제 코드)
 - preprocess.hpp (plugin 코드)
@@ -17,7 +20,7 @@
 - Validation_py/Validation_preproc.py (계산 결과 검증)
 ***
 
-## Simple Classification model 예제 완료
+## Simple Classification model
 - vgg11 모델 (vgg11.cpp 참고)
 - preprocess plugin 적용
 - 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성) 
@@ -25,7 +28,7 @@
 - 파이토치 대비 약 2배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
 ***
 
-## TensorRT PTQ model 예제 완료
+## TensorRT PTQ model
 - resnet18 모델 (ptq_ex1.cpp 참고)
 - 224x224x3 이미지 1개 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교(ms = milliseconds)
 - Pytorch  F32	-> 389 ms (1.449 GB)
@@ -33,9 +36,11 @@
 - TensorRT F32	-> 199 ms (1.356 GB)
 - TensorRT F16	-> 58 ms  (0.922 GB)
 - TensorRT Int8 -> 40 ms  (0.870 GB) (PTQ)
+- 정합성 완료
 ***
 
-## Semantic Segmentaion model 예제 완료
+## Semantic Segmentaion model
+- TensorRT 8.0.3.4 (unet)
 - unet 모델 (unet.cpp 참고)
 - 512x512x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
 - Pytorch  F32	-> 6621 ms (3.863 GB)
@@ -48,7 +53,8 @@
 - 정합성 완료
 ***
 
-## Object Detection model(ViT) 예제 완료
+## Object Detection model(ViT)
+- TensorRT 8.2.0.6 (detr) 
 - DETR 모델 (detr_trt.cpp) 
 - 500x500x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
 - Pytorch  F32	-> 3703 ms (1.563 GB)
@@ -61,13 +67,12 @@
 - 정합성 완료
 ***
 
-## C TensoRT 모델 Python에서 불러오기 예제 (완료)
+## C TensoRT 모델 Python에서 불러오기
 - TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>
 ***
 
-## 추가 작업 (준비중)
-- calibration image process (cpp -> cuda kernel) (준비중)
-- fused 기능 (conv + bachnorm -> fused conv) 추가 (준비중)
+## 추가 작업 
+- calibration image process (cpp -> cuda kernel)
 ***
 
 ## 일반적인 TensorRT 모델 만드는 작업 순서 

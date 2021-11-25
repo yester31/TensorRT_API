@@ -23,7 +23,7 @@ static const int INPUT_H = 224;
 static const int INPUT_W = 224;
 static const int OUTPUT_SIZE = 1000;
 static const int INPUT_C = 3;
-static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -196,7 +196,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1 << 20);
+	config->setMaxWorkspaceSize(1 << 23);
 	
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -206,30 +206,26 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,0, "../data_calib/", "resnet18_int8_calib.table", INPUT_BLOB_NAME);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,0, "../data_calib/", "../Int8_calib_table/resnet18_int8_calib.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}else {
 		std::cout << "==== precision f32 ====" << std::endl << std::endl;
 	}
 
-	ICudaEngine* engine = builder->buildEngineWithConfig(*network, *config);
-
+	std::cout << "Building engine, please wait for a while..." << std::endl;
+	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
 	std::cout << "==== model build done ====" << std::endl << std::endl;
 
 	std::cout << "==== model selialize start ====" << std::endl << std::endl;
-
-	IHostMemory* model_stream = engine->serialize();
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
-		//return -1;
 	}
-	p.write(reinterpret_cast<const char*>(model_stream->data()), model_stream->size());
+	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
 
-	model_stream->destroy();
-	engine->destroy();
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
+	engine->destroy();
 	network->destroy();
 	// Release host memory
 	for (auto& mem : weightMap)
@@ -242,7 +238,7 @@ int main()
 {
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "resnet18";
 
 	char engine_file_path[256];
@@ -379,15 +375,8 @@ int main()
 //Index : 388, Feature_value : 13.5554
 //Class Name : giant panda panda panda bear coon bear Ailuropoda melanoleuca
 //==================================================
-
-//==================================================
 //Model : resnet18, Precision : 8 
 //100 th Iteration, Total dur time : 40 [milliseconds]
-//Index : 388, Feature_value : 11.7665 cali_data = 100
-//Index : 388, Feature_value : 13.1946 cali_data = 200
-//Index : 388, Feature_value : 13.3628 cali_data = 300
-//Index : 388, Feature_value : 13.2521 cali_data = 300
-//Index : 388, Feature_value : 13.2801 cali_data = 400 (cat / dog, 1/3)
-//Index : 388, Feature_value : 13.2542 cali_data = 400 (cat / dog, 2/2)
+//Index : 388, Feature_value : 13.9033
 //Class Name : giant panda panda panda bear coon bear Ailuropoda melanoleuca
 //==================================================

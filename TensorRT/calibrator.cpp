@@ -31,8 +31,10 @@ Int8EntropyCalibrator2::Int8EntropyCalibrator2(int batchsize, int input_w, int i
 	, read_cache_(read_cache)
 {
 	input_count_ = 3 * input_w * input_h * batchsize;
-	CHECK(cudaMalloc(&device_input_, input_count_ * sizeof(float)));
+	input_size_ = 3 * input_w * input_h;
+	CHECK(cudaMalloc(&device_input_, input_count_ * sizeof(uint8_t)));
 	read_files_in_dir(img_dir, img_files_);
+
 }
 
 Int8EntropyCalibrator2::~Int8EntropyCalibrator2()
@@ -51,8 +53,9 @@ bool Int8EntropyCalibrator2::getBatch(void* bindings[], const char* names[], int
 		return false;
 	}
 
-	if (process_type_ == 1) { // detr
-		std::vector<float> input_imgs_(input_count_, 0);
+	if (process_type_ == 0) { // vgg, resnet, detr (with preprocess layer) 
+		std::vector<uint8_t> input_imgs_(input_count_, 0);
+		cv::Mat img(input_h_, input_w_, CV_8UC3);
 		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
 			std::cout << img_files_[i] << "  " << i << std::endl;
 			cv::Mat temp = cv::imread(img_dir_ + img_files_[i]);
@@ -60,35 +63,55 @@ bool Int8EntropyCalibrator2::getBatch(void* bindings[], const char* names[], int
 				std::cerr << "Fatal error: image cannot open!" << std::endl;
 				return false;
 			}
-			preprocessImg(temp, input_w_, input_h_);
-			for (int c = 0; c < 3; c++) {
-				for (int h = 0; h < input_h_; h++) {
-					for (int w = 0; w < input_w_; w++) {
-						input_imgs_[(i - img_idx_)*input_w_*input_h_ * 3 +
-							c * input_h_ * input_w_ + h * input_w_ + w] = temp.at<cv::Vec3f>(h, w)[c];
-					}
+			cv::resize(temp, img, img.size(), cv::INTER_LINEAR);
+			memcpy(input_imgs_.data() + (i - img_idx_) * input_size_, img.data, input_size_);
+		}
+		img_idx_ += batchsize_;
+		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(uint8_t), cudaMemcpyHostToDevice));
+	}else if (process_type_ == 1) {  // unet (with preprocess layer) 
+		std::vector<uint8_t> input_imgs_(input_count_, 0);
+		cv::Mat img(input_h_, input_w_, CV_8UC3);
+		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
+			std::cout << img_files_[i] << "  " << i << std::endl;
+			cv::Mat ori_img = cv::imread(img_dir_ + img_files_[i]);
+			if (ori_img.empty()) {
+				std::cerr << "Fatal error: image cannot open!" << std::endl;
+				return false;
+			}
+			int ori_w = ori_img.cols;
+			int ori_h = ori_img.rows;
+			if (ori_h == ori_w) { // 입력이미지가 정사각형일 경우
+				cv::Mat img_r(input_h_, input_w_, CV_8UC3);
+				cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // 모델 사이즈로 리사이즈
+				memcpy(input_imgs_.data() + (i - img_idx_) * input_size_, img_r.data, input_size_);
+			}
+			else {
+				int new_h, new_w;
+				if (ori_w >= ori_h) {
+					new_h = (int)(ori_h * ((float)input_w_ / ori_w));
+					new_w = input_w_;
 				}
+				else {
+					new_h = input_h_;
+					new_w = (int)(ori_w * ((float)input_h_ / ori_h));
+				}
+				cv::Mat img_r(new_h, new_w, CV_8UC3);
+				cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR);
+				int tb = (int)((input_h_ - new_h) / 2);
+				int bb = ((new_h % 2) == 1) ? tb + 1 : tb;
+				int lb = (int)((input_w_ - new_w) / 2);
+				int rb = ((new_w % 2) == 1) ? lb + 1 : lb;
+				cv::Mat img_p(input_h_, input_w_, CV_8UC3);
+				cv::copyMakeBorder(img_r, img_p, tb, bb, lb, rb, cv::BORDER_CONSTANT, cv::Scalar(128, 128, 128));
+				memcpy(input_imgs_.data() + (i - img_idx_) * input_size_, img_p.data, input_size_);
 			}
 		}
 		img_idx_ += batchsize_;
-
-		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(uint8_t), cudaMemcpyHostToDevice));
 	}
-	else { // vgg, resnet, unet
-		std::vector<cv::Mat> input_imgs_;
-		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
-			std::cout << img_files_[i] << "  " << i << std::endl;
-			cv::Mat temp = cv::imread(img_dir_ + img_files_[i]);
-			if (temp.empty()) {
-				std::cerr << "Fatal error: image cannot open!" << std::endl;
-				return false;
-			}
-			cv::Mat pr_img = preprocess_img_cali(temp, input_w_, input_h_);
-			input_imgs_.push_back(pr_img);
-		}
-		img_idx_ += batchsize_;
-		cv::Mat blob = cv::dnn::blobFromImages(input_imgs_, 1.0, cv::Size(input_w_, input_h_), cv::Scalar(104, 117, 123), false, false);
-		CHECK(cudaMemcpy(device_input_, blob.ptr<float>(0), input_count_ * sizeof(float), cudaMemcpyHostToDevice));
+	else { // 
+		std::cerr << "Fatal error: pre-preprocess type is wrong!" << std::endl;
+		return false;
 	}
 
 	assert(!strcmp(names[0], input_blob_name_));

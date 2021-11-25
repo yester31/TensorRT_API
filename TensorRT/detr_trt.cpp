@@ -136,7 +136,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 1, "../data_calib2/", "detr_int8_calib300.table", INPUT_BLOB_NAME);
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 0, "../data_calib/", "../Int8_calib_table/detr_int8_calib.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}
 	else {
@@ -151,14 +151,12 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
-		//return -1;
 	}
 	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
 
 	engine->destroy();
 	network->destroy();
-
 	// Release host memory
 	for (auto& mem : weightMap)
 	{
@@ -282,8 +280,8 @@ int main()
 
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
-	std::cout << "===============" << engineFileName << "===============" << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
+	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
+	std::cout << iter_count << " th Iteration, Total dur time : " << dur_time << " [milliseconds]" << std::endl;
 
 	// 이미지 출력 로직
 	//prob [100, 91]

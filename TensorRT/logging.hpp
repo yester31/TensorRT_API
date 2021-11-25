@@ -7,8 +7,8 @@
 SampleErrorRecorder gRecorder;
 namespace sample
 {
-	//Logger gLogger{ Logger::Severity::kINFO };
-	Logger gLogger{ Logger::Severity::kVERBOSE };
+	Logger gLogger{ Logger::Severity::kINFO };
+	//Logger gLogger{ Logger::Severity::kVERBOSE };
 	LogStreamConsumer gLogVerbose{ LOG_VERBOSE(gLogger) };
 	LogStreamConsumer gLogInfo{ LOG_INFO(gLogger) };
 	LogStreamConsumer gLogWarning{ LOG_WARN(gLogger) };

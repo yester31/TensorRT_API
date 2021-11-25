@@ -28,6 +28,7 @@ private:
 	std::string img_dir_;
 	std::vector<std::string> img_files_;
 	size_t input_count_;
+	size_t input_size_;
 	std::string calib_table_name_;
 	const char* input_blob_name_;
 	bool read_cache_;
