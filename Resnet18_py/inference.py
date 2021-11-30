@@ -85,7 +85,7 @@ def main():
     max_index = max_tensor[1].cpu().data.numpy()[0]
     print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
 
-    if 0:  # LIST 형태 웨이트 파일 생성 로직
+    if 1:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
         weight_list = [(key, value) for (key, value) in weights.items()]
         for idx in range(len(weight_list)):
@@ -95,17 +95,6 @@ def main():
                 continue
             print(idx, key, value.shape)
 
-        with open("resnet18.weights", 'wb') as f:
-            for idx in range(len(weight_list)):  # PROTO
-                key, value = weight_list[idx]
-                if "num_batches_tracked" in key:
-                    print(idx, "--------------------")
-                    continue
-                w = value.cpu().data.numpy()
-                f.write(w)
-                print(0, idx, key, value.shape)
-            print()
-        exit()
 
     if os.path.isfile('resnet18.wts'):
         print('Already, resnet18.wts file exists.')

@@ -1,87 +1,89 @@
 # TensorRT_EX
 
-## 작업 환경
+## Enviroments
+***
 - Windows 10 laptop
 - CPU i7-11375H
 - GPU RTX-3060
+- Visual studio 2017
 - CUDA 11.1
 - TensorRT 8.0.3.4 (unet)
 - TensorRT 8.2.0.6 (detr) 
 - Cudnn 8.2.1
 - Opencv 3.4.5
-- int8 PTQ용 데이터 COCO val2017 100개 사용
 ***
 
 ## custom plugin 
-- 전처리 기능을 수행하는 레이어(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1] (Normalize))
-- plugin_ex1.cpp (plugin 예제 코드)
-- preprocess.hpp (plugin 코드)
-- preprocess.cu (전처리 cuda kernel 함수)
-- Validation_py/Validation_preproc.py (계산 결과 검증)
+- Layer that perform image preprocessing(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1] (Normalize))
+- plugin_ex1.cpp (plugin sample code)
+- preprocess.hpp (plugin define)
+- preprocess.cu (preprocessing cuda kernel function)
+- Validation_py/Validation_preproc.py (Result validation with pytorch)
 ***
 
 ## Simple Classification model
-- vgg11 모델 (vgg11.cpp 참고)
-- preprocess plugin 적용
-- 사용하기 편한 구조 (엔진 파일 유무에 따라 재생성) 
-- 좀 더 쉽고 직관적 코드 구조 
-- 파이토치 대비 약 2배 속도 증가(224x224x3 이미지 100회 반복 계산 수행시간 비교)
+- vgg11 model (vgg11.cpp)
+- with preprocess plugin
+- Easy-to-use structure (regenerated according to the presence or absence of engine files)
+- Easier and more intuitive code structure
+- About 2 times faster than PyTorch(Comparison of calculation execution time of 100 iteration for one 224x224x3 image)
 ***
 
 ## TensorRT PTQ model
-- resnet18 모델 (ptq_ex1.cpp 참고)
-- 224x224x3 이미지 1개 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교(ms = milliseconds)
+- resnet18 model (ptq_ex1.cpp)
+- 100 images from COCO val2017 dataset for PTQ calibration
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 224x224x3 image 
 - Pytorch  F32	-> 389 ms (1.449 GB)
 - Pytorch  F16	-> 330 ms (1.421 GB)
 - TensorRT F32	-> 199 ms (1.356 GB)
 - TensorRT F16	-> 58 ms  (0.922 GB)
 - TensorRT Int8 -> 40 ms  (0.870 GB) (PTQ)
-- 정합성 완료
+- Match all results with PyTorch
 ***
 
 ## Semantic Segmentaion model
 - TensorRT 8.0.3.4 (unet)
-- unet 모델 (unet.cpp 참고)
-- 512x512x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
+- UNet model (unet.cpp)
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 512x512x3 image
 - Pytorch  F32	-> 6621 ms (3.863 GB)
 - Pytorch  F16	-> 3458 ms (2.677 GB)
 - TensorRT F32	-> 4722 ms (1.600 GB)
 - TensorRT F16	-> 1858 ms (1.080 GB) 
 - TensorRT Int8 -> 938 ms  (1.051 GB) (PTQ)
-- 전처리 (resize & letterbox padding) openCV 사용
-- 후처리 (model output to image)
-- 정합성 완료
+- additional preprocess (resize & letterbox padding) with openCV
+- postprocess (model output to image)
+- Match all results with PyTorch
 ***
 
 ## Object Detection model(ViT)
 - TensorRT 8.2.0.6 (detr) 
-- DETR 모델 (detr_trt.cpp) 
-- 500x500x3 모델 사이즈 100회 반복 계산 수행시간 및 GPU 메모리 사용량 비교
+- DETR model (detr_trt.cpp) 
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 500x500x3 image 
 - Pytorch  F32	-> 3703 ms (1.563 GB)
 - Pytorch  F16	-> 3071 ms (1.511 GB)
 - TensorRT F32	-> 1640 ms (1.212 GB)
 - TensorRT F16	->  607 ms (1.091 GB) 
 - TensorRT Int8 ->  530 ms (1.005 GB) (PTQ)
-- preprocess 기능 추가 (mean std 정규화 기능)
-- 후처리 (detection 결과 출력)
-- 정합성 완료
+- additional preprocess (mean std normalization function)
+- postprocess (show out detection result to the image)
+- Match all results with PyTorch
 ***
 
-## C TensoRT 모델 Python에서 불러오기
+## Using C TensoRT model in Python using dll
 - TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>
 ***
 
-## 추가 작업 
-- calibration image process (cpp -> cuda kernel)
 ***
 
-## 일반적인 TensorRT 모델 만드는 작업 순서 
-0. 학습 프레임 워크에서 학습 완료된 모델을 준비(trt에서 사용 할 웨이트 파일 생성).     
-1. TensorRT API를 사용하여 학습된 모델 구조와 동일하게 모델을 구현(코딩).     
-2. 기존 학습 모델에서 웨이트를 추출하여 준비된 TensorRT 모델의 각각 레이어에 알맞게 웨이트를 전달.     
-3. 완성된 코드를 빌드하고 실행.     
-4. TensorRT 모델이 빌드되고 난 뒤 생성된 모델 스트림을 Serialize 하여 엔진 파일로 생성.     
-5. 이 후 작업에서 엔진파일만 로드하여 추론 수행(만약 모델 파리미터나 레이어 수정시 이전(4) 작업 재실행).     
+## A typical TensorRT model creation sequence using TensorRT API
+0. Prepare the trained model in the training framework (generate the weight file to be used in TensorRT).
+1. Implement the model using the TensorRT API to match the trained model structure.
+2. Extract weights from the trained model.
+3. Make sure to pass the weights appropriately to each layer of the prepared TensorRT model.
+4. Build and run.
+5. After the TensorRT model is built, the model stream is serialized and generated as an engine file.
+6. Inference by loading only the engine file in the subsequent task(if model parameters or layers are modified, re-execute the previous (4) task).
+     
 ***
 
 ## reference   
