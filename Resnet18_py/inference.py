@@ -62,7 +62,7 @@ def main():
     if half:
         net.half()  # to FP16
     #print('model: ', net)                       # 모델 구조 출력
-    #summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
+    summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
 
     img = cv2.imread('../TestDate/panda0.jpg')  # image file load
     dur_time = 0
@@ -85,7 +85,7 @@ def main():
     max_index = max_tensor[1].cpu().data.numpy()[0]
     print('resnet18 max index : {} , value : {}, class name : {}'.format(max_index, max_value, class_name[max_index] ))
 
-    if 1:  # LIST 형태 웨이트 파일 생성 로직
+    if 0:  # LIST 형태 웨이트 파일 생성 로직
         weights = net.state_dict()
         weight_list = [(key, value) for (key, value) in weights.items()]
         for idx in range(len(weight_list)):
