@@ -113,6 +113,27 @@ def main():
             f.write("\n")
         print('Completed resnet18.wts file!')
 
+
+    # if os.path.isfile('resnet18re.wts'):
+    #     print('Already, resnet18re.wts file exists.')
+    # else:
+    #     print('making resnet18re.wts file ...')        # vgg.wts 파일이 없다면 생성
+    #     f = open("resnet18re.wts", 'w')
+    #     f.write("{}\n".format(len(net.state_dict().keys())))
+    #     for k, v in net.state_dict().items():
+    #         print('key: ', k)
+    #         print('value: ', v.shape)
+    #         if v.ndim == 4:
+    #             vr = v.cpu().numpy().transpose(0, 2, 3, 1).flatten()
+    #         else:
+    #             vr = v.reshape(-1).cpu().numpy()
+    #         f.write("{} {}".format(k, len(vr)))
+    #         for vv in vr:
+    #             f.write(" ")
+    #             f.write(struct.pack(">f", float(vv)).hex())
+    #         f.write("\n")
+    #     print('Completed resnet18.wts file!')
+
 if __name__ == '__main__':
     main()
 

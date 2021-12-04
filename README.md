@@ -33,11 +33,11 @@
 - resnet18 model (ptq_ex1.cpp)
 - 100 images from COCO val2017 dataset for PTQ calibration
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 224x224x3 image 
-- Pytorch  F32	-> 389 ms (1.449 GB)
-- Pytorch  F16	-> 330 ms (1.421 GB)
-- TensorRT F32	-> 199 ms (1.356 GB)
-- TensorRT F16	-> 58 ms  (0.922 GB)
-- TensorRT Int8 -> 40 ms  (0.870 GB) (PTQ)
+  - Pytorch  F32	-> 389 ms (1.449 GB) (257 FPS)
+  - Pytorch  F16	-> 330 ms (1.421 GB) (303 FPS)
+  - TensorRT F32	-> 199 ms (1.356 GB) (503 FPS)
+  - TensorRT F16	-> 58 ms  (0.922 GB) (1724 FPS)
+  - TensorRT Int8 -> 40 ms  (0.870 GB) (2500 FPS) (PTQ)
 - Match all results with PyTorch
 ***
 
@@ -45,11 +45,11 @@
 - TensorRT 8.0.3.4 (unet)
 - UNet model (unet.cpp)
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 512x512x3 image
-- Pytorch  F32	-> 6621 ms (3.863 GB)
-- Pytorch  F16	-> 3458 ms (2.677 GB)
-- TensorRT F32	-> 4722 ms (1.600 GB)
-- TensorRT F16	-> 1858 ms (1.080 GB) 
-- TensorRT Int8 -> 938 ms  (1.051 GB) (PTQ)
+  - Pytorch  F32	-> 6621 ms (3.863 GB) (15 FPS)
+  - Pytorch  F16	-> 3458 ms (2.677 GB) (29 FPS)
+  - TensorRT F32	-> 4722 ms (1.600 GB) (21 FPS)
+  - TensorRT F16	-> 1858 ms (1.080 GB) (54 FPS)
+  - TensorRT Int8   -> 938 ms  (1.051 GB) (107 FPS) (PTQ)
 - additional preprocess (resize & letterbox padding) with openCV
 - postprocess (model output to image)
 - Match all results with PyTorch
@@ -59,11 +59,11 @@
 - TensorRT 8.2.0.6 (detr) 
 - DETR model (detr_trt.cpp) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 500x500x3 image 
-- Pytorch  F32	-> 3703 ms (1.563 GB)
-- Pytorch  F16	-> 3071 ms (1.511 GB)
-- TensorRT F32	-> 1640 ms (1.212 GB)
-- TensorRT F16	->  607 ms (1.091 GB) 
-- TensorRT Int8 ->  530 ms (1.005 GB) (PTQ)
+  - Pytorch  F32	-> 3703 ms (1.563 GB) (27 FPS)
+  - Pytorch  F16	-> 3071 ms (1.511 GB) (33 FPS)
+  - TensorRT F32	-> 1640 ms (1.212 GB) (61 FPS)
+  - TensorRT F16	->  607 ms (1.091 GB) (165 FPS)
+  - TensorRT Int8 ->  530 ms (1.005 GB) (189 FPS) (PTQ)
 - additional preprocess (mean std normalization function)
 - postprocess (show out detection result to the image)
 - Match all results with PyTorch
