@@ -24,7 +24,7 @@ static const int INPUT_W = INPUT_H;
 static const int INPUT_C = 3;
 static const int class_count = 2;
 static const int OUTPUT_SIZE = INPUT_H * INPUT_W * class_count;
-static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -256,7 +256,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 int main()
 {
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "unet";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);

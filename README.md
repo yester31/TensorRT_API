@@ -9,8 +9,8 @@
 - CUDA 11.1
 - TensorRT 8.0.3.4 (unet)
 - TensorRT 8.2.0.6 (detr) 
-- Cudnn 8.2.1
-- Opencv 3.4.5
+- Cudnn 8.2.1.32
+- Opencv 3.4.5 or 4.5.4
 ***
 
 ## custom plugin 
