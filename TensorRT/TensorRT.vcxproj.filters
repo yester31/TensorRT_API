@@ -16,6 +16,7 @@
     </ClCompile>
     <ClCompile Include="unet.cpp" />
     <ClCompile Include="detr_trt.cpp" />
+    <ClCompile Include="yolov5s.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">
