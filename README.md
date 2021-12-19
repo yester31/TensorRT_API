@@ -73,7 +73,7 @@
 ## Object Detection model
 - TensorRT 8.0.3.4 (yolov5s) 
 - Yolov5s model (yolov5s.cpp) 
-- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 640x640x3 image resiged & padded
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 640x640x3 image resized & padded
   - Pytorch  F32	-> 772 ms ( 1.670 GB) ( 129 FPS)
   - TensorRT F32	-> 616 ms ( 1.359 GB) ( 162 FPS)
   - TensorRT Int8	-> 286 ms ( 0.920 GB) ( 350 FPS) (PTQ)
