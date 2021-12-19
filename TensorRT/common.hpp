@@ -8,4 +8,4 @@ cv::Mat preprocess_img_cali(cv::Mat& img, int input_w, int input_h);
 int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_names);
 
 // cpp 전처리 함수 
-void preprocessImg(cv::Mat& img, int newh, int neww);
+//void preprocessImg(cv::Mat& img, int newh, int neww);

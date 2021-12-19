@@ -34,6 +34,9 @@
     <ClInclude Include="common.hpp">
       <Filter>calibrate</Filter>
     </ClInclude>
+    <ClInclude Include="yololayer.hpp">
+      <Filter>plugin</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="plugin">
@@ -48,6 +51,9 @@
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="preprocess.cu">
+      <Filter>plugin</Filter>
+    </CudaCompile>
+    <CudaCompile Include="yoloayer.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
   </ItemGroup>

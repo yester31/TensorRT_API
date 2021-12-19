@@ -270,7 +270,7 @@ int main()
 		exist_engine = true;
 	}
 
-	if (!((serialize == false)/*Serialize 강제화 값*/ == (exist_engine == true) /*resnet18.engine 파일이 있는지 유무*/)) {
+	if (!((serialize == false)/*Serialize 강제화 값*/ && (exist_engine == true) /*resnet18.engine 파일이 있는지 유무*/)) {
 		std::cout << "===== Create Engine file =====" << std::endl << std::endl; // 새로운 엔진 생성
 		IBuilder* builder = createInferBuilder(gLogger);
 		IBuilderConfig* config = builder->createBuilderConfig();

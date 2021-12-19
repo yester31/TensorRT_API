@@ -8,9 +8,10 @@
 - Visual studio 2017
 - CUDA 11.1
 - TensorRT 8.0.3.4 (unet)
+- TensorRT 8.0.3.4 (yolov5s)
 - TensorRT 8.2.0.6 (detr) 
 - Cudnn 8.2.1.32
-- Opencv 3.4.5 or 4.5.4
+- Opencv 3.4.5
 ***
 
 ## custom plugin 
@@ -62,11 +63,20 @@
   - Pytorch  F32	-> 3703 ms (1.563 GB) (27 FPS)
   - Pytorch  F16	-> 3071 ms (1.511 GB) (33 FPS)
   - TensorRT F32	-> 1640 ms (1.212 GB) (61 FPS)
-  - TensorRT F16	->  607 ms (1.091 GB) (165 FPS)
-  - TensorRT Int8 ->  530 ms (1.005 GB) (189 FPS) (PTQ)
+  - TensorRT F16	-> 607 ms  (1.091 GB) (165 FPS)
+  - TensorRT Int8	-> 530 ms  (1.005 GB) (189 FPS) (PTQ)
 - additional preprocess (mean std normalization function)
 - postprocess (show out detection result to the image)
 - Match all results with PyTorch
+***
+
+## Object Detection model
+- TensorRT 8.0.3.4 (yolov5s) 
+- Yolov5s model (yolov5s.cpp) 
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 640x640x3 image resiged & padded
+  - Pytorch  F32	-> 772 ms ( 1.670 GB) ( 129 FPS)
+  - TensorRT F32	-> 616 ms ( 1.359 GB) ( 162 FPS)
+  - TensorRT Int8	-> 286 ms ( 0.920 GB) ( 350 FPS) (PTQ)
 ***
 
 ## Using C TensoRT model in Python using dll

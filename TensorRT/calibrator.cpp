@@ -109,6 +109,47 @@ bool Int8EntropyCalibrator2::getBatch(void* bindings[], const char* names[], int
 		img_idx_ += batchsize_;
 		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(uint8_t), cudaMemcpyHostToDevice));
 	}
+	else if (process_type_ == 2) {
+		std::vector<uint8_t> input_imgs_(input_count_, 0);
+		cv::Mat img(input_h_, input_w_, CV_8UC3);
+		for (int i = img_idx_; i < img_idx_ + batchsize_; i++) {
+			std::cout << img_files_[i] << "  " << i << std::endl;
+			cv::Mat ori_img = cv::imread(img_dir_ + img_files_[i]);
+			if (ori_img.empty()) {
+				std::cerr << "Fatal error: image cannot open!" << std::endl;
+				return false;
+			}
+			int ori_w = ori_img.cols;
+			int ori_h = ori_img.rows;
+
+			if (ori_h == ori_w) { // 입력이미지가 정사각형일 경우
+				cv::Mat img_r(input_h_, input_w_, CV_8UC3);
+				cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // 모델 사이즈로 리사이즈
+				memcpy(input_imgs_.data() + (i - img_idx_) * input_size_, img_r.data, input_size_);
+			}
+			else {
+				float ratio = std::min(((float)input_h_ / ori_w), ((float)input_w_ / ori_h));
+				int	new_h = (int)(round(ori_h * ratio));
+				int	new_w = (int)(round(ori_w * ratio));
+				cv::Mat img_r(new_h, new_w, CV_8UC3);
+				cv::resize(ori_img, img_r, img_r.size(), cv::INTER_LINEAR); // 정합성 일치
+				//int dh = (INPUT_H - new_h) % 32;
+				//int dw = (INPUT_W - new_w) % 32;
+				int dh = (input_h_ - new_h);
+				int dw = (input_w_ - new_w);
+				int tb = (int)round(((float)dh / 2) - 0.1);
+				int bb = (int)round(((float)dh / 2) + 0.1);
+				int lb = (int)round(((float)dw / 2) - 0.1);
+				int rb = (int)round(((float)dw / 2) + 0.1);
+				cv::Mat img_p((new_h + dh), (new_w + dw), CV_8UC3);
+				cv::copyMakeBorder(img_r, img_p, tb, bb, lb, rb, cv::BORDER_CONSTANT, cv::Scalar(114, 114, 114));
+				memcpy(input_imgs_.data() + (i - img_idx_) * input_size_, img_p.data, input_size_);
+			}
+		}
+		img_idx_ += batchsize_;
+		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(uint8_t), cudaMemcpyHostToDevice));
+
+	}
 	else { // 
 		std::cerr << "Fatal error: pre-preprocess type is wrong!" << std::endl;
 		return false;

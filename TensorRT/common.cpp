@@ -58,12 +58,13 @@ int read_files_in_dir(const char *p_dir_name, std::vector<std::string> &file_nam
 	return 0;
 }
 
-void preprocessImg(cv::Mat& img, int newh, int neww) {
-	// convert to rgb
-	cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-	cv::resize(img, img, cv::Size(neww, newh));
-	img.convertTo(img, CV_32FC3);
-	img /= 255;
-	img -= cv::Scalar(0.485, 0.456, 0.406);
-	img /= cv::Scalar(0.229, 0.224, 0.225);
-}
+//void preprocessImg(cv::Mat& img, int newh, int neww) {
+//	// convert to rgb
+//	cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
+//	cv::resize(img, img, cv::Size(neww, newh));
+//	img.convertTo(img, CV_32FC3);
+//	img /= 255;
+//	img -= cv::Scalar(0.485, 0.456, 0.406);
+//	img /= cv::Scalar(0.229, 0.224, 0.225);
+//}
+
