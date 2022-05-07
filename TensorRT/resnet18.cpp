@@ -101,8 +101,6 @@ IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, W
 	return scale_1;
 }
 
-
-
 IActivationLayer* basicBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int inch, int outch, int stride, std::string lname) {
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 

@@ -79,6 +79,17 @@
   - TensorRT Int8	-> 286 ms ( 0.920 GB) ( 350 FPS) (PTQ)
 ***
 
+## Super-Resolution model(in progress)
+- TensorRT 8.0.3.4 (Real-ESRGAN) 
+- Real-ESRGAN model (real-esrgan.cpp) 
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 448x640x3
+  - Pytorch  F32	
+  - Pytorch  F16	
+  - TensorRT F32	
+  - TensorRT F16	
+  - TensorRT Int8	
+***
+
 ## Using C TensoRT model in Python using dll
 - TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>
 ***

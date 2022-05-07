@@ -29,7 +29,7 @@ static const int CLASS_NUM = 80;
 static const int MAX_OUTPUT_BBOX_COUNT = 300;
 static const int OUTPUT_SIZE = 6 * MAX_OUTPUT_BBOX_COUNT;  
 //static const int OUTPUT_SIZE = 6 * 25200;  
-static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 // yolov5s 
 static const float  gd = 0.33;
