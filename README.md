@@ -1,5 +1,11 @@
 # TensorRT_EX
 
+## needs
+- Real-ESRGAN model
+- README update
+- refactoring
+- accuracy drop check for ptq model
+
 ## Enviroments
 ***
 - Windows 10 laptop
@@ -7,10 +13,8 @@
 - GPU RTX-3060
 - Visual studio 2017
 - CUDA 11.1
-- TensorRT 8.0.3.4 (unet)
-- TensorRT 8.0.3.4 (yolov5s)
+- TensorRT 8.0.3.4 (unet, yolov5s)
 - TensorRT 8.2.0.6 (detr) 
-- Cudnn 8.2.1.32
 - Opencv 3.4.5
 ***
 
@@ -111,3 +115,5 @@
 * tensorrtx : <https://github.com/wang-xinyu/tensorrtx>
 * unet : <https://github.com/milesial/Pytorch-UNet>
 * detr : <https://github.com/facebookresearch/detr>
+* yolov5 : <https://github.com/ultralytics/yolov5>
+* real-esrgan : <https://github.com/xinntao/Real-ESRGAN>
