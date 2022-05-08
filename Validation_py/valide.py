@@ -3,7 +3,7 @@ import numpy as np
 from compare import *
 
 if 1:
-    output_c = np.fromfile("C_Tensor", dtype=np.float32)
+    output_c = np.fromfile("c", dtype=np.float32)
     # for t in range(int(len(output_c)/6)):
     #     tt = output_c[t * 6 + 4]
     #     if tt > 0.6 :
@@ -16,7 +16,7 @@ if 1:
     #         print(output_c[t * 6 + 5])
 
 
-    output_py = np.fromfile("py_0", dtype=np.float32)
+    output_py = np.fromfile("p", dtype=np.float32)
     compare_two_tensor(output_py, output_c)
 else:
     output_c = np.fromfile("trt_1", dtype=np.int8)

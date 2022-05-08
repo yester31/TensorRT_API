@@ -10,3 +10,6 @@ x64
 C_Tensor
 py
 trt
+c
+p
+GPUCache

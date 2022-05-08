@@ -18,10 +18,12 @@ using namespace nvinfer1;
 sample::Logger gLogger;
 
 // stuff we know about the network and the input/output blobs
-static const int INPUT_H = 224;
-static const int INPUT_W = 224;
-static const int OUTPUT_SIZE = 1000;
+static const int INPUT_H = 640;
+static const int INPUT_W = 448;
 static const int INPUT_C = 3;
+static const int OUT_SCALE = 4;
+//static const int OUTPUT_SIZE = INPUT_H * INPUT_W * INPUT_C;
+static const int OUTPUT_SIZE = INPUT_H * INPUT_W * 64;
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -68,72 +70,99 @@ std::map<std::string, Weights> loadWeights(const std::string file)
 	return weightMap;
 }
 
-IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps) {
-	float *gamma = (float*)weightMap[lname + ".weight"].values;
-	float *beta = (float*)weightMap[lname + ".bias"].values;
-	float *mean = (float*)weightMap[lname + ".running_mean"].values;
-	float *var = (float*)weightMap[lname + ".running_var"].values;
-	int len = weightMap[lname + ".running_var"].count;
-
-	float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		scval[i] = gamma[i] / sqrt(var[i] + eps);
+void show_dims(ITensor* tensor) 
+{
+	std::cout << "=== show dims ===" << std::endl;
+	int dims = tensor->getDimensions().nbDims;
+	std::cout << "size :: " << dims << std::endl;
+	for (int i = 0; i < dims; i++) {
+		std::cout << tensor->getDimensions().d[i] << std::endl;
 	}
-	Weights scale{ DataType::kFLOAT, scval, len };
-
-	float *shval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		shval[i] = beta[i] - mean[i] * gamma[i] / sqrt(var[i] + eps);
-	}
-	Weights shift{ DataType::kFLOAT, shval, len };
-
-	float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		pval[i] = 1.0;
-	}
-	Weights power{ DataType::kFLOAT, pval, len };
-
-	weightMap[lname + ".scale"] = scale;
-	weightMap[lname + ".shift"] = shift;
-	weightMap[lname + ".power"] = power;
-	IScaleLayer* scale_1 = network->addScale(input, ScaleMode::kCHANNEL, shift, scale, power);
-	assert(scale_1);
-	return scale_1;
 }
 
-IActivationLayer* basicBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int inch, int outch, int stride, std::string lname) {
-	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
+ITensor* residualDenseBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* x, std::string lname) 
+{
 
-	IConvolutionLayer* conv1 = network->addConvolutionNd(input, outch, DimsHW{ 3, 3 }, weightMap[lname + "conv1.weight"], emptywts);
-	assert(conv1);
-	conv1->setStrideNd(DimsHW{ stride, stride });
-	conv1->setPaddingNd(DimsHW{ 1, 1 });
+	IConvolutionLayer* conv_1 = network->addConvolutionNd(*x, 32, DimsHW{ 3, 3 }, weightMap[lname + ".conv1.weight"], weightMap[lname + ".conv1.bias"]);
+	conv_1->setStrideNd(DimsHW{ 1, 1 });
+	conv_1->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_1 = network->addActivation(*conv_1->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_1->setAlpha(0.2);
+	ITensor* x1 = leaky_relu_1->getOutput(0);
 
-	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + "bn1", 1e-5);
+	ITensor* concat_input2[] = { x, x1 };
+	IConcatenationLayer* concat2 = network->addConcatenation(concat_input2, 2);
+	concat2->setAxis(0);
+	IConvolutionLayer* conv_2 = network->addConvolutionNd(*concat2->getOutput(0), 32, DimsHW{ 3, 3 }, weightMap[lname + ".conv2.weight"], weightMap[lname + ".conv2.bias"]);
+	conv_2->setStrideNd(DimsHW{ 1, 1 });
+	conv_2->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_2 = network->addActivation(*conv_2->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_2->setAlpha(0.2);
+	ITensor* x2 = leaky_relu_2->getOutput(0);
 
-	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
-	assert(relu1);
+	ITensor* concat_input3[] = { x, x1, x2 };
+	IConcatenationLayer* concat3 = network->addConcatenation(concat_input3, 3);
+	concat3->setAxis(0);
+	IConvolutionLayer* conv_3 = network->addConvolutionNd(*concat3->getOutput(0), 32, DimsHW{ 3, 3 }, weightMap[lname + ".conv3.weight"], weightMap[lname + ".conv3.bias"]);
+	conv_3->setStrideNd(DimsHW{ 1, 1 });
+	conv_3->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_3 = network->addActivation(*conv_3->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_3->setAlpha(0.2);
+	ITensor* x3 = leaky_relu_3->getOutput(0);
 
-	IConvolutionLayer* conv2 = network->addConvolutionNd(*relu1->getOutput(0), outch, DimsHW{ 3, 3 }, weightMap[lname + "conv2.weight"], emptywts);
-	assert(conv2);
-	conv2->setPaddingNd(DimsHW{ 1, 1 });
+	ITensor* concat_input4[] = { x, x1, x2, x3 };
+	IConcatenationLayer* concat4 = network->addConcatenation(concat_input4, 4);
+	concat4->setAxis(0);
+	IConvolutionLayer* conv_4 = network->addConvolutionNd(*concat4->getOutput(0), 32, DimsHW{ 3, 3 }, weightMap[lname + ".conv4.weight"], weightMap[lname + ".conv4.bias"]);
+	conv_4->setStrideNd(DimsHW{ 1, 1 });
+	conv_4->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_4 = network->addActivation(*conv_4->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_4->setAlpha(0.2);
+	ITensor* x4 = leaky_relu_4->getOutput(0);
 
-	IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + "bn2", 1e-5);
+	ITensor* concat_input5[] = { x, x1, x2, x3, x4 };
+	IConcatenationLayer* concat5 = network->addConcatenation(concat_input5, 5);
+	concat5->setAxis(0);
+	IConvolutionLayer* conv_5 = network->addConvolutionNd(*concat5->getOutput(0), 64, DimsHW{ 3, 3 }, weightMap[lname + ".conv5.weight"], weightMap[lname + ".conv5.bias"]);
+	conv_5->setStrideNd(DimsHW{ 1, 1 });
+	conv_5->setPaddingNd(DimsHW{ 1, 1 });
+	ITensor* x5 = conv_5->getOutput(0);
 
-	IElementWiseLayer* ew1;
-	if (inch != outch) {
-		IConvolutionLayer* conv3 = network->addConvolutionNd(input, outch, DimsHW{ 1, 1 }, weightMap[lname + "downsample.0.weight"], emptywts);
-		assert(conv3);
-		conv3->setStrideNd(DimsHW{ stride, stride });
-		IScaleLayer* bn3 = addBatchNorm2d(network, weightMap, *conv3->getOutput(0), lname + "downsample.1", 1e-5);
-		ew1 = network->addElementWise(*bn3->getOutput(0), *bn2->getOutput(0), ElementWiseOperation::kSUM);
-	}
-	else {
-		ew1 = network->addElementWise(input, *bn2->getOutput(0), ElementWiseOperation::kSUM);
-	}
-	IActivationLayer* relu2 = network->addActivation(*ew1->getOutput(0), ActivationType::kRELU);
-	assert(relu2);
-	return relu2;
+	float *scval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*scval = 0.2;
+	Weights scale{ DataType::kFLOAT, scval, 1 };
+	float *shval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*shval = 0.0;
+	Weights shift{ DataType::kFLOAT, shval, 1 };
+	float *pval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*pval = 1.0;
+	Weights power{ DataType::kFLOAT, pval, 1 };
+
+	IScaleLayer* scaled = network->addScale(*x5, ScaleMode::kUNIFORM, shift, scale, power);
+	IElementWiseLayer* ew1 = network->addElementWise(*scaled->getOutput(0), *x, ElementWiseOperation::kSUM);
+	return ew1->getOutput(0);
+}
+
+
+ITensor* RRDB(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* x, std::string lname)
+{
+	ITensor* out = residualDenseBlock(network, weightMap, x, lname + ".rdb1");
+	out = residualDenseBlock(network, weightMap, out, lname + ".rdb2");
+	out = residualDenseBlock(network, weightMap, out, lname + ".rdb3");
+
+	float *scval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*scval = 0.2;
+	Weights scale{ DataType::kFLOAT, scval, 1 };
+	float *shval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*shval = 0.0;
+	Weights shift{ DataType::kFLOAT, shval, 1 };
+	float *pval = reinterpret_cast<float*>(malloc(sizeof(float)));
+	*pval = 1.0;
+	Weights power{ DataType::kFLOAT, pval, 1 };
+
+	IScaleLayer* scaled = network->addScale(*out, ScaleMode::kUNIFORM, shift, scale, power);
+	IElementWiseLayer* ew1 = network->addElementWise(*scaled->getOutput(0), *x, ElementWiseOperation::kSUM);
+	return ew1->getOutput(0);
 }
 
 // Creat the engine using only the API and not any parser.
@@ -142,7 +171,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	std::cout << "==== model build start ====" << std::endl << std::endl;
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 
-	std::map<std::string, Weights> weightMap = loadWeights("../Resnet18_py/resnet18.wts");
+	std::map<std::string, Weights> weightMap = loadWeights("../Real-ESRGAN_py/real-esrgan.wts");
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ INPUT_H, INPUT_W, INPUT_C });
@@ -155,42 +184,38 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	preprocess_layer->setName("preprocess_layer"); // layer 이름 설정
 	ITensor* prep = preprocess_layer->getOutput(0);
 
-	IConvolutionLayer* conv1 = network->addConvolutionNd(*prep, 64, DimsHW{ 7, 7 }, weightMap["conv1.weight"], emptywts);
-	assert(conv1);
-	conv1->setStrideNd(DimsHW{ 2, 2 });
-	conv1->setPaddingNd(DimsHW{ 3, 3 });
+	// conv_first
+	IConvolutionLayer* conv_first = network->addConvolutionNd(*prep, 64, DimsHW{ 3, 3 }, weightMap["conv_first.weight"], weightMap["conv_first.bias"]);
+	conv_first->setStrideNd(DimsHW{ 1, 1 });
+	conv_first->setPaddingNd(DimsHW{ 1, 1 });
+	conv_first->setName("conv_first"); // layer 이름 설정
+	ITensor* feat = conv_first->getOutput(0);
 
-	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), "bn1", 1e-5);
+	// conv_body
+	for (int idx = 0; idx < 23; idx++) 
+	{
+		feat = RRDB(network, weightMap, feat, "body." + std::to_string(idx));
+	}
 
-	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
-	assert(relu1);
+	IConvolutionLayer* conv_body = network->addConvolutionNd(*feat, 64, DimsHW{ 3, 3 }, weightMap["conv_body.weight"], weightMap["conv_body.bias"]);
+	conv_body->setStrideNd(DimsHW{ 1, 1 });
+	conv_body->setPaddingNd(DimsHW{ 1, 1 });
+	conv_body->setName("conv_body"); // layer 이름 설정
+	feat = conv_body->getOutput(0);
 
-	IPoolingLayer* pool1 = network->addPoolingNd(*relu1->getOutput(0), PoolingType::kMAX, DimsHW{ 3, 3 });
-	assert(pool1);
-	pool1->setStrideNd(DimsHW{ 2, 2 });
-	pool1->setPaddingNd(DimsHW{ 1, 1 });
 
-	IActivationLayer* relu2 = basicBlock(network, weightMap, *pool1->getOutput(0), 64, 64, 1, "layer1.0.");
-	IActivationLayer* relu3 = basicBlock(network, weightMap, *relu2->getOutput(0), 64, 64, 1, "layer1.1.");
+	//upsample
 
-	IActivationLayer* relu4 = basicBlock(network, weightMap, *relu3->getOutput(0), 64, 128, 2, "layer2.0.");
-	IActivationLayer* relu5 = basicBlock(network, weightMap, *relu4->getOutput(0), 128, 128, 1, "layer2.1.");
+	//IResizeLayer* interpolate_nearest = network->addResize(*feat); // 1,1024,60,80 -> 1,1024,120,160
+	//float sclaes[] = { 1, 1, 2, 2 };
+	//interpolate_nearest->setScales(sclaes, 4);
+	//interpolate_nearest->setResizeMode(ResizeMode::kNEAREST);
+	//pspupsample_bilinear->setCoordinateTransformation(ResizeCoordinateTransformation::kALIGN_CORNERS);
 
-	IActivationLayer* relu6 = basicBlock(network, weightMap, *relu5->getOutput(0), 128, 256, 2, "layer3.0.");
-	IActivationLayer* relu7 = basicBlock(network, weightMap, *relu6->getOutput(0), 256, 256, 1, "layer3.1.");
-
-	IActivationLayer* relu8 = basicBlock(network, weightMap, *relu7->getOutput(0), 256, 512, 2, "layer4.0.");
-	IActivationLayer* relu9 = basicBlock(network, weightMap, *relu8->getOutput(0), 512, 512, 1, "layer4.1.");
-
-	IPoolingLayer* pool2 = network->addPoolingNd(*relu9->getOutput(0), PoolingType::kAVERAGE, DimsHW{ 7, 7 });
-	assert(pool2);
-	pool2->setStrideNd(DimsHW{ 1, 1 });
-
-	IFullyConnectedLayer* fc1 = network->addFullyConnected(*pool2->getOutput(0), 1000, weightMap["fc.weight"], weightMap["fc.bias"]);
-	assert(fc1);
-
-	fc1->getOutput(0)->setName(OUTPUT_BLOB_NAME);
-	network->markOutput(*fc1->getOutput(0));
+	ITensor* final_tensor = feat;
+	show_dims(final_tensor);
+	final_tensor->setName(OUTPUT_BLOB_NAME);
+	network->markOutput(*final_tensor);
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
@@ -222,8 +247,8 @@ int main()
 {
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
-	char engineFileName[] = "resnet18";
+	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	char engineFileName[] = "real-esrgan";
 
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s.engine", engineFileName);
@@ -280,7 +305,7 @@ int main()
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
 
 	// 4) 입력으로 사용할 이미지 준비하기
-	std::string img_dir = "../TestDate/";
+	std::string img_dir = "../TestData3/";
 	std::vector<std::string> file_names;
 	if (SearchFile(img_dir.c_str(), file_names) < 0) { // 이미지 파일 찾기
 		std::cerr << "[ERROR] Data search error" << std::endl;
@@ -300,11 +325,17 @@ int main()
 	std::cout << "===== input load done =====" << std::endl << std::endl;
 
 	uint64_t dur_time = 0;
-	uint64_t iter_count = 100;
+	uint64_t iter_count = 1;
 
 	// CUDA 스트림 생성
 	cudaStream_t stream;
 	CHECK(cudaStreamCreate(&stream));
+
+	// warm-up
+	CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
+	context->enqueue(maxBatchSize, buffers, stream, nullptr);
+	CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
+	cudaStreamSynchronize(stream);
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
@@ -321,12 +352,13 @@ int main()
 		//std::cout << dur << " milliseconds" << std::endl;
 	}
 
+	tofile(outputs, "../Validation_py/c"); // 결과값 파일로 출력
+	//../Validation_py/valide_preproc.py 에서 결과 비교 ㄱㄱ
+
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
 	std::cout << "===============" << engineFileName << "===============" << std::endl;
 	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
-	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
-	std::cout << "Index : " << max_index << ", Probability : " << outputs[max_index] << ", Class Name : " << class_names[max_index] << std::endl;
 	std::cout << "==================================================" << std::endl;
 
 	// Release stream and buffers ...
