@@ -38,6 +38,9 @@
     <ClInclude Include="yololayer.hpp">
       <Filter>plugin</Filter>
     </ClInclude>
+    <ClInclude Include="postprocess.hpp">
+      <Filter>plugin</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="plugin">
@@ -55,6 +58,9 @@
       <Filter>plugin</Filter>
     </CudaCompile>
     <CudaCompile Include="yoloayer.cu">
+      <Filter>plugin</Filter>
+    </CudaCompile>
+    <CudaCompile Include="postprocess.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
   </ItemGroup>

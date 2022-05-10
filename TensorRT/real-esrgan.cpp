@@ -12,6 +12,7 @@
 #include <io.h>				//access
 #include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
+#include "postprocess.hpp"	// postprocess plugin 
 #include "logging.hpp"	
 
 using namespace nvinfer1;
@@ -22,8 +23,8 @@ static const int INPUT_H = 640;
 static const int INPUT_W = 448;
 static const int INPUT_C = 3;
 static const int OUT_SCALE = 4;
-//static const int OUTPUT_SIZE = INPUT_H * INPUT_W * INPUT_C;
-static const int OUTPUT_SIZE = INPUT_H * INPUT_W * 64;
+static const int OUTPUT_SIZE = INPUT_C * INPUT_H * OUT_SCALE * INPUT_W * OUT_SCALE ;
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -82,7 +83,6 @@ void show_dims(ITensor* tensor)
 
 ITensor* residualDenseBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* x, std::string lname) 
 {
-
 	IConvolutionLayer* conv_1 = network->addConvolutionNd(*x, 32, DimsHW{ 3, 3 }, weightMap[lname + ".conv1.weight"], weightMap[lname + ".conv1.bias"]);
 	conv_1->setStrideNd(DimsHW{ 1, 1 });
 	conv_1->setPaddingNd(DimsHW{ 1, 1 });
@@ -192,27 +192,61 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	ITensor* feat = conv_first->getOutput(0);
 
 	// conv_body
-	for (int idx = 0; idx < 23; idx++) 
-	{
-		feat = RRDB(network, weightMap, feat, "body." + std::to_string(idx));
+	ITensor* body_feat = RRDB(network, weightMap, feat, "body.0");
+	for (int idx = 1; idx < 23; idx++) {
+		body_feat = RRDB(network, weightMap, body_feat, "body." + std::to_string(idx));
 	}
 
-	IConvolutionLayer* conv_body = network->addConvolutionNd(*feat, 64, DimsHW{ 3, 3 }, weightMap["conv_body.weight"], weightMap["conv_body.bias"]);
+	IConvolutionLayer* conv_body = network->addConvolutionNd(*body_feat, 64, DimsHW{ 3, 3 }, weightMap["conv_body.weight"], weightMap["conv_body.bias"]);
 	conv_body->setStrideNd(DimsHW{ 1, 1 });
 	conv_body->setPaddingNd(DimsHW{ 1, 1 });
-	conv_body->setName("conv_body"); // layer 이름 설정
-	feat = conv_body->getOutput(0);
 
+	IElementWiseLayer* ew1 = network->addElementWise(*feat, *conv_body->getOutput(0), ElementWiseOperation::kSUM);
+	feat = ew1->getOutput(0);
 
 	//upsample
-
-	//IResizeLayer* interpolate_nearest = network->addResize(*feat); // 1,1024,60,80 -> 1,1024,120,160
-	//float sclaes[] = { 1, 1, 2, 2 };
-	//interpolate_nearest->setScales(sclaes, 4);
+	IResizeLayer* interpolate_nearest = network->addResize(*feat);
+	//Dims3 sclaes1 = { feat->getDimensions().d[0], feat->getDimensions().d[1]*2, feat->getDimensions().d[2]*2 };
 	//interpolate_nearest->setResizeMode(ResizeMode::kNEAREST);
-	//pspupsample_bilinear->setCoordinateTransformation(ResizeCoordinateTransformation::kALIGN_CORNERS);
+	//interpolate_nearest->setOutputDimensions(sclaes1);
+	float sclaes1[] = { 1, 2, 2 };
+	interpolate_nearest->setScales(sclaes1, 3);
+	interpolate_nearest->setResizeMode(ResizeMode::kNEAREST);
 
-	ITensor* final_tensor = feat;
+	IConvolutionLayer* conv_up1 = network->addConvolutionNd(*interpolate_nearest->getOutput(0), 64, DimsHW{ 3, 3 }, weightMap["conv_up1.weight"], weightMap["conv_up1.bias"]);
+	conv_up1->setStrideNd(DimsHW{ 1, 1 });
+	conv_up1->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_1 = network->addActivation(*conv_up1->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_1->setAlpha(0.2);
+
+	IResizeLayer* interpolate_nearest2 = network->addResize(*leaky_relu_1->getOutput(0)); 
+	float sclaes2[] = { 1, 2, 2 };
+	interpolate_nearest2->setScales(sclaes2, 3);
+	interpolate_nearest2->setResizeMode(ResizeMode::kNEAREST);
+	IConvolutionLayer* conv_up2 = network->addConvolutionNd(*interpolate_nearest2->getOutput(0), 64, DimsHW{ 3, 3 }, weightMap["conv_up2.weight"], weightMap["conv_up2.bias"]);
+	conv_up2->setStrideNd(DimsHW{ 1, 1 });
+	conv_up2->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_2 = network->addActivation(*conv_up2->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_2->setAlpha(0.2);
+
+	IConvolutionLayer* conv_hr = network->addConvolutionNd(*leaky_relu_2->getOutput(0), 64, DimsHW{ 3, 3 }, weightMap["conv_hr.weight"], weightMap["conv_hr.bias"]);
+	conv_hr->setStrideNd(DimsHW{ 1, 1 });
+	conv_hr->setPaddingNd(DimsHW{ 1, 1 });
+	IActivationLayer* leaky_relu_hr = network->addActivation(*conv_hr->getOutput(0), ActivationType::kLEAKY_RELU);
+	leaky_relu_hr->setAlpha(0.2);
+	IConvolutionLayer* conv_last = network->addConvolutionNd(*leaky_relu_hr->getOutput(0), 3, DimsHW{ 3, 3 }, weightMap["conv_last.weight"], weightMap["conv_last.bias"]);
+	conv_last->setStrideNd(DimsHW{ 1, 1 });
+	conv_last->setPaddingNd(DimsHW{ 1, 1 });
+	ITensor* out = conv_last->getOutput(0);
+
+	//postprocess (RGB -> BGR, NCHW->NHWC, *255, ROUND, uint8)
+	Postprocess postprocess{ maxBatchSize, out->getDimensions().d[0], out->getDimensions().d[1], out->getDimensions().d[2] };// Custom(postprocess) plugin 사용하기
+	IPluginCreator* postprocess_creator = getPluginRegistry()->getPluginCreator("postprocess", "1");// Custom(postprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
+	IPluginV2 *postprocess_plugin = postprocess_creator->createPlugin("postprocess_plugin", (PluginFieldCollection*)&postprocess);// Custom(postprocess) plugin 생성
+	IPluginV2Layer* postprocess_layer = network->addPluginV2(&out, 1, *postprocess_plugin);// network 객체에 custom(postprocess) plugin을 사용하여 custom(postprocess) 레이어 추가
+	postprocess_layer->setName("postprocess_layer"); // layer 이름 설정
+
+	ITensor* final_tensor = postprocess_layer->getOutput(0);
 	show_dims(final_tensor);
 	final_tensor->setName(OUTPUT_BLOB_NAME);
 	network->markOutput(*final_tensor);
@@ -247,7 +281,7 @@ int main()
 {
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "real-esrgan";
 
 	char engine_file_path[256];
@@ -302,7 +336,7 @@ int main()
 
 	// GPU에서 입력과 출력으로 사용할 메모리 공간할당
 	CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t)));
-	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
+	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(uint8_t)));
 
 	// 4) 입력으로 사용할 이미지 준비하기
 	std::string img_dir = "../TestData3/";
@@ -316,7 +350,7 @@ int main()
 	cv::Mat img(INPUT_H, INPUT_W, CV_8UC3);
 	cv::Mat ori_img;
 	std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C);	// 입력이 담길 컨테이너 변수 생성
-	std::vector<float> outputs(OUTPUT_SIZE);
+	std::vector<uint8_t> outputs(OUTPUT_SIZE);
 	for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
 		cv::Mat ori_img = cv::imread(file_names[idx]);
 		cv::resize(ori_img, img, img.size()); // input size로 리사이즈
@@ -332,34 +366,44 @@ int main()
 	CHECK(cudaStreamCreate(&stream));
 
 	// warm-up
+	std::cout << "===== warm-up begin =====" << std::endl << std::endl;
 	CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
-	CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
+	CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(uint8_t), cudaMemcpyDeviceToHost, stream));
 	cudaStreamSynchronize(stream);
+	std::cout << "===== warm-up done =====" << std::endl << std::endl;
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
-		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
+
 		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 		CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 		context->enqueue(maxBatchSize, buffers, stream, nullptr);
-		CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
+		CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(uint8_t), cudaMemcpyDeviceToHost, stream));
 		cudaStreamSynchronize(stream);
 
 		auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - start;
 		dur_time += dur;
-		//std::cout << dur << " milliseconds" << std::endl;
 	}
-
-	tofile(outputs, "../Validation_py/c"); // 결과값 파일로 출력
-	//../Validation_py/valide_preproc.py 에서 결과 비교 ㄱㄱ
 
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
-	std::cout << "===============" << engineFileName << "===============" << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time :: " << dur_time << " milliseconds" << std::endl;
+	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
+	std::cout << iter_count << " th Iteration" << std::endl;
+	std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
+	std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
+	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl << std::endl;
+	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
 	std::cout << "==================================================" << std::endl;
+
+	cv::Mat frame = cv::Mat(INPUT_H * OUT_SCALE, INPUT_W * OUT_SCALE, CV_8UC3, outputs.data());
+	cv::imshow("result", frame);
+	cv::waitKey(0);
+	cv::imwrite("../result.png", frame);
+
+	//tofile(outputs, "../Validation_py/c"); // 결과값 파일로 출력
+	//../Validation_py/valide_preproc.py 에서 결과 비교 ㄱㄱ
 
 	// Release stream and buffers ...
 	cudaStreamDestroy(stream);

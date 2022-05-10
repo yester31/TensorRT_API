@@ -105,11 +105,18 @@ def main():
             if args.face_enhance:
                 _, _, output = face_enhancer.enhance(img, has_aligned=False, only_center_face=False, paste_back=True)
             else:
-                begin = time.time()
+                #warm-up
                 output, _ = upsampler.enhance(img, outscale=args.outscale)
-                dur = time.time() - begin
-                #dur_time += dur
-                print('{} dur time : {}'.format(idx, dur))
+
+                dur_time = 0
+                iters = 10
+                for _ in range(iters):
+                    begin = time.time()
+                    output, _ = upsampler.enhance(img, outscale=args.outscale)
+                    dur = time.time() - begin
+                    dur_time += dur
+
+                print('{} dur time : {}'.format(idx, dur_time/iters))
                 #OST_009.png
                 # dur time(fp32): 3.969133138656616
                 # dur time(fp16): 1.9099974632263184

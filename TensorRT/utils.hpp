@@ -16,13 +16,25 @@ void initTensor(std::vector<float>& output, std::string random, float min = -10.
 void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start = 1, float step = 0);
 
 // 데이터 바이너리 파일로 생성 (serialize) 
-void tofile(std::vector<float> &Buffer, std::string fname = "../Validation_py/C_Tensor");
-
+template<class T>
+void tofile(std::vector<T> &Buffer, std::string fname = "../Validation_py/C_Tensor") {
+	std::ofstream fs(fname, std::ios::binary);
+	if (fs.is_open())
+		fs.write((const char*)Buffer.data(), Buffer.size() * sizeof(T));
+	fs.close();
+	std::cout << "Done! file production to " << fname << std::endl;
+}
 // 데이터 바이너리 파일 로드 (unserialize) 
 // 사용 예) 
 // fromfile(input, "../Unet_py/input_data"); // python 전처리 결과 로드
-void fromfile(std::vector<uint8_t>& Buffer, std::string fname = "../Validation_py/C_Tensor");
-
+template<class T>
+void fromfile(std::vector<T>& Buffer, std::string fname = "../Validation_py/C_Tensor") {
+	std::ifstream ifs(fname, std::ios::binary);
+	if (ifs.is_open())
+		ifs.read((char*)Buffer.data(), Buffer.size() * sizeof(T));
+	ifs.close();
+	std::cout << "Done! file load from " << fname << std::endl;
+}
 // 최대값 인덱스 출력 함수
 // 사용 예) 
 // std::cout << "index : "<< argMax(output) << " , label name : " << class_names[argMax(output) ] << " , prob : " << output[argMax(output) ] << std::endl;
