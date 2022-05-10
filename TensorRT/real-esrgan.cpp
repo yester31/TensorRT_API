@@ -143,7 +143,6 @@ ITensor* residualDenseBlock(INetworkDefinition *network, std::map<std::string, W
 	return ew1->getOutput(0);
 }
 
-
 ITensor* RRDB(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* x, std::string lname)
 {
 	ITensor* out = residualDenseBlock(network, weightMap, x, lname + ".rdb1");
@@ -253,7 +252,24 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1 << 20);
+	//config->setMaxWorkspaceSize(1 << 22);
+	config->setMaxWorkspaceSize(28 * (1 << 23));  // 28MB
+
+	if (precision_mode == 16) {
+		std::cout << "==== precision f16 ====" << std::endl << std::endl;
+		config->setFlag(BuilderFlag::kFP16);
+	}
+	else if (precision_mode == 8) {
+		//std::cout << "==== precision int8 ====" << std::endl << std::endl;
+		//std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
+		//assert(builder->platformHasFastInt8());
+		//config->setFlag(BuilderFlag::kINT8);
+		//Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 0, "../data_calib/", "../Int8_calib_table/detr_int8_calib.table", INPUT_BLOB_NAME);
+		//config->setInt8Calibrator(calibrator);
+	}
+	else {
+		std::cout << "==== precision f32 ====" << std::endl << std::endl;
+	}
 
 	std::cout << "Building engine, please wait for a while..." << std::endl;
 	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
@@ -285,7 +301,7 @@ int main()
 	char engineFileName[] = "real-esrgan";
 
 	char engine_file_path[256];
-	sprintf(engine_file_path, "../Engine/%s.engine", engineFileName);
+	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
 
 	// 1) engine file 만들기 
 	// 강제 만들기 true면 무조건 다시 만들기
@@ -359,7 +375,7 @@ int main()
 	std::cout << "===== input load done =====" << std::endl << std::endl;
 
 	uint64_t dur_time = 0;
-	uint64_t iter_count = 1;
+	uint64_t iter_count = 10;
 
 	// CUDA 스트림 생성
 	cudaStream_t stream;

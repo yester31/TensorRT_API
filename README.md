@@ -85,15 +85,16 @@
 
 ## Super-Resolution model(in progress)
 - TensorRT 8.0.3.4 (Real-ESRGAN) 
-- Real-ESRGAN model (real-esrgan.cpp) 
+- Real-ESRGAN model (real-esrgan.cpp)
+- Scale up 4x (448x640x3 -> 1792x2560x3) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 448x640x3
-  - Pytorch  F32	
-  - Pytorch  F16	
-  - TensorRT F32	
-  - TensorRT F16	
+  - Pytorch  F32	4109 ms ( 5.029 GB)
+  - Pytorch  F16	1936 ms ( 4.407 GB)
+  - TensorRT F32	2139 ms ( 3.807 GB) (0.47 FPS)
+  - TensorRT F16	737 ms ( 3.311 GB) (1.35 FPS)
   - TensorRT Int8	
 ***
-
+ 
 ## Using C TensoRT model in Python using dll
 - TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>
 ***
