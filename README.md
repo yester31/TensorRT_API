@@ -1,10 +1,9 @@
 # TensorRT_EX
 
-## needs
-- Real-ESRGAN model
-- README update
-- refactoring
-- accuracy drop check for ptq model
+## in progress
+- code refactoring
+- debug(unet, custom plugin)
+- performance check
 
 ## Enviroments
 ***
@@ -13,7 +12,7 @@
 - GPU RTX-3060
 - Visual studio 2017
 - CUDA 11.1
-- TensorRT 8.0.3.4 (unet, yolov5s)
+- TensorRT 8.0.3.4 (unet, yolov5s, real-esrgan)
 - TensorRT 8.2.0.6 (detr) 
 - Opencv 3.4.5
 ***
@@ -26,73 +25,388 @@
 - Validation_py/Validation_preproc.py (Result validation with pytorch)
 ***
 
-## Simple Classification model
-- vgg11 model (vgg11.cpp)
+## Classification model
+### vgg11 model 
+- vgg11.cpp
 - with preprocess plugin
 - Easy-to-use structure (regenerated according to the presence or absence of engine files)
 - Easier and more intuitive code structure
-- About 2 times faster than PyTorch(Comparison of calculation execution time of 100 iteration for one 224x224x3 image)
+
 ***
 
-## TensorRT PTQ model
-- resnet18 model (ptq_ex1.cpp)
+### resnet18 model
+- resnet18.cpp
 - 100 images from COCO val2017 dataset for PTQ calibration
-- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 224x224x3 image 
-  - Pytorch  F32	-> 389 ms (1.449 GB) (257 FPS)
-  - Pytorch  F16	-> 330 ms (1.421 GB) (303 FPS)
-  - TensorRT F32	-> 199 ms (1.356 GB) (503 FPS)
-  - TensorRT F16	-> 58 ms  (0.922 GB) (1724 FPS)
-  - TensorRT Int8 -> 40 ms  (0.870 GB) (2500 FPS) (PTQ)
 - Match all results with PyTorch
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 224x224x3 image 
+
+[//]: # (<table border="0"  width="100%">)
+
+[//]: # (	<tbody align="center">)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td></td>)
+
+[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8&#40;PTQ&#41;</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Duration time [ms]</td>)
+
+[//]: # (			<td>389 ms</td>)
+
+[//]: # (			<td>330 ms</td>)
+
+[//]: # (			<td>199 ms </td>)
+
+[//]: # (			<td>58 ms</td>)
+
+[//]: # (			<td>40 ms</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>FPS [f/s]</td>)
+
+[//]: # (			<td>257 fps</td>)
+
+[//]: # (			<td>303 fps</td>)
+
+[//]: # (			<td>503 fps</td>)
+
+[//]: # (			<td>1724 fps</td>)
+
+[//]: # (			<td>2500 fps</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Memory [GB]</td>)
+
+[//]: # (			<td>1.449 GB</td>)
+
+[//]: # (			<td>1.421 GB</td>)
+
+[//]: # (			<td>1.356 GB</td>)
+
+[//]: # (			<td>0.922 GB</td>)
+
+[//]: # (			<td>0.870 GB</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (	</tbody>)
+
+[//]: # (</table>)
+
 ***
 
 ## Semantic Segmentaion model
 - TensorRT 8.0.3.4 (unet)
 - UNet model (unet.cpp)
-- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 512x512x3 image
-  - Pytorch  F32	-> 6621 ms (3.863 GB) (15 FPS)
-  - Pytorch  F16	-> 3458 ms (2.677 GB) (29 FPS)
-  - TensorRT F32	-> 4722 ms (1.600 GB) (21 FPS)
-  - TensorRT F16	-> 1858 ms (1.080 GB) (54 FPS)
-  - TensorRT Int8   -> 938 ms  (1.051 GB) (107 FPS) (PTQ)
 - additional preprocess (resize & letterbox padding) with openCV
 - postprocess (model output to image)
 - Match all results with PyTorch
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 512x512x3 image
+
+[//]: # (<table border="0"  width="100%">)
+
+[//]: # (	<tbody align="center">)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td></td>)
+
+[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8&#40;PTQ&#41;</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Duration time [ms]</td>)
+
+[//]: # (			<td>6621 ms</td>)
+
+[//]: # (			<td>3458 ms</td>)
+
+[//]: # (			<td>4722 ms </td>)
+
+[//]: # (			<td>1858 ms</td>)
+
+[//]: # (			<td>938 ms</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>FPS [f/s]</td>)
+
+[//]: # (			<td>15 fps</td>)
+
+[//]: # (			<td>29 fps</td>)
+
+[//]: # (			<td>21 fps</td>)
+
+[//]: # (			<td>54 fps</td>)
+
+[//]: # (			<td>107 fps</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Memory [GB]</td>)
+
+[//]: # (			<td>3.863 GB</td>)
+
+[//]: # (			<td>2.677 GB</td>)
+
+[//]: # (			<td>1.600 GB</td>)
+
+[//]: # (			<td>1.080 GB</td>)
+
+[//]: # (			<td>1.051 GB</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (	</tbody>)
+
+[//]: # (</table>)
+
 ***
 
 ## Object Detection model(ViT)
 - TensorRT 8.2.0.6 (detr) 
 - DETR model (detr_trt.cpp) 
-- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 500x500x3 image 
-  - Pytorch  F32	-> 3703 ms (1.563 GB) (27 FPS)
-  - Pytorch  F16	-> 3071 ms (1.511 GB) (33 FPS)
-  - TensorRT F32	-> 1640 ms (1.212 GB) (61 FPS)
-  - TensorRT F16	-> 607 ms  (1.091 GB) (165 FPS)
-  - TensorRT Int8	-> 530 ms  (1.005 GB) (189 FPS) (PTQ)
 - additional preprocess (mean std normalization function)
 - postprocess (show out detection result to the image)
 - Match all results with PyTorch
+- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 500x500x3 image 
+
+[//]: # (<table border="0"  width="100%">)
+
+[//]: # (	<tbody align="center">)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td></td>)
+
+[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8&#40;PTQ&#41;</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Duration time [ms]</td>)
+
+[//]: # (			<td>3703 ms</td>)
+
+[//]: # (			<td>3071 ms</td>)
+
+[//]: # (			<td>1640 ms </td>)
+
+[//]: # (			<td>607 ms</td>)
+
+[//]: # (			<td>530 ms</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>FPS [f/s]</td>)
+
+[//]: # (			<td>27 fps</td>)
+
+[//]: # (			<td>33 fps</td>)
+
+[//]: # (			<td>61 fps</td>)
+
+[//]: # (			<td>165 fps</td>)
+
+[//]: # (			<td>189 fps</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Memory [GB]</td>)
+
+[//]: # (			<td>1.563 GB</td>)
+
+[//]: # (			<td>1.511 GB</td>)
+
+[//]: # (			<td>1.212 GB</td>)
+
+[//]: # (			<td>1.091 GB</td>)
+
+[//]: # (			<td>1.005 GB</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (	</tbody>)
+
+[//]: # (</table>)
+
 ***
 
 ## Object Detection model
 - TensorRT 8.0.3.4 (yolov5s) 
 - Yolov5s model (yolov5s.cpp) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 640x640x3 image resized & padded
-  - Pytorch  F32	-> 772 ms ( 1.670 GB) ( 129 FPS)
-  - TensorRT F32	-> 616 ms ( 1.359 GB) ( 162 FPS)
-  - TensorRT Int8	-> 286 ms ( 0.920 GB) ( 350 FPS) (PTQ)
+
+[//]: # (<table border="0"  width="100%">)
+
+[//]: # (	<tbody align="center">)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td></td>)
+
+[//]: # (			<td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Precision</td><td>FP32</td><td>FP32</td><td>Int8&#40;PTQ&#41;</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Duration time [ms]</td>)
+
+[//]: # (			<td>772 ms</td>)
+
+[//]: # (			<td>616 ms </td>)
+
+[//]: # (			<td>286 ms</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>FPS [f/s]</td>)
+
+[//]: # (			<td>129 fps</td>)
+
+[//]: # (			<td>162 fps</td>)
+
+[//]: # (			<td>350 fps</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Memory [GB]</td>)
+
+[//]: # (			<td>1.670 GB</td>)
+
+[//]: # (			<td>1.359 GB</td>)
+
+[//]: # (			<td>0.920 GB</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (	</tbody>)
+
+[//]: # (</table>)
+
 ***
 
-## Super-Resolution model(in progress)
+## Super-Resolution model
 - TensorRT 8.0.3.4 (Real-ESRGAN) 
 - Real-ESRGAN model (real-esrgan.cpp)
 - Scale up 4x (448x640x3 -> 1792x2560x3) 
-- Comparison of calculation execution time of 100 iteration and GPU memory usage for one 448x640x3
-  - Pytorch  F32	4109 ms ( 5.029 GB)
-  - Pytorch  F16	1936 ms ( 4.407 GB)
-  - TensorRT F32	2139 ms ( 3.807 GB) (0.47 FPS)
-  - TensorRT F16	737 ms ( 3.311 GB) (1.35 FPS)
-  - TensorRT Int8	
+- Comparison of calculation execution time of 100 iteration and GPU memory usage
+
+[//]: # (<table border="0"  width="100%">)
+
+[//]: # (	<tbody align="center">)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td></td>)
+
+[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Duration time [ms]</td>)
+
+[//]: # (			<td>4109 ms</td>)
+
+[//]: # (			<td>1936 ms</td>)
+
+[//]: # (			<td>2139 ms </td>)
+
+[//]: # (			<td>737 ms</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>FPS [f/s]</td>)
+
+[//]: # (			<td>0.24 fps</td>)
+
+[//]: # (			<td>0.52 fps</td>)
+
+[//]: # (			<td>0.47 fps</td>)
+
+[//]: # (			<td>1.35 fps</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (		<tr>)
+
+[//]: # (			<td>Memory [GB]</td>)
+
+[//]: # (			<td>5.029 GB</td>)
+
+[//]: # (			<td>4.407 GB</td>)
+
+[//]: # (			<td>3.807 GB</td>)
+
+[//]: # (			<td>3.311 GB</td>)
+
+[//]: # (		</tr>)
+
+[//]: # (	</tbody>)
+
+[//]: # (</table>)
+
 ***
  
 ## Using C TensoRT model in Python using dll

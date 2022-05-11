@@ -141,7 +141,7 @@ def main():
     if half:
         model.half()  # to FP16
     model.eval()
-
+    gen_wts(model, 'detr')
     url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
     im = Image.open(requests.get(url, stream=True).raw)
 

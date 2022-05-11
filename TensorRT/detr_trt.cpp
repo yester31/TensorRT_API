@@ -1,23 +1,7 @@
-﻿#include "NvInfer.h"
-#include "cuda_runtime_api.h"
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <vector>
-#include <chrono>
-#include <algorithm>
-#include <unordered_map>
-#include "opencv2/opencv.hpp"
-#include <string>
-#include <io.h>				// access
-#include "utils.hpp"		// custom function
+﻿#include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
 #include "calibrator.h"		// ptq
-
-#define DEVICE 0
-#define BATCH_SIZE 1
 
 using namespace nvinfer1;
 sample::Logger gLogger;
@@ -47,29 +31,38 @@ static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 const char* INPUT_BLOB_NAME = "images";
 const std::vector<std::string> OUTPUT_NAMES = { "scores", "boxes" };
 
-void loadWeights(const std::string file, std::unordered_map<std::string, Weights>& weightMap);
-IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& input, const std::string& lname, float eps = 1e-5);
-ILayer* BasicStem(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int out_channels, int group_num = 1);
-ITensor* BasicBlock(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int in_channels, int out_channels, int stride = 1);
-ITensor* BottleneckBlock(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int in_channels, int bottleneck_channels, int out_channels, int stride = 1, int dilation = 1, int group_num = 1);
-ITensor* MakeStage(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int stage, RESNETTYPE resnet_type, int in_channels, int bottleneck_channels, int out_channels, int first_stride = 1, int dilation = 1);
-ITensor* BuildResNet(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& input, RESNETTYPE resnet_type, int stem_out_channels, int bottleneck_channels, int res2_out_channels, int res5_dilation = 1);
-ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& input, int num_pos_feats = 64, int temperature = 10000);
-ITensor* MultiHeadAttention(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& query, ITensor& key, ITensor& value, int embed_dim = 256, int num_heads = 8);
-ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, int d_model = 256);
-ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
-ITensor* TransformerEncoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int num_layers = 6);
-ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
-ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
-ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries = 100, int num_encoder_layers = 6, int num_decoder_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
-ITensor* MLP(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, int num_layers = 3, int hidden_dim = 256, int output_dim = 4);
-std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor* src);
+// COCO dataset class names
+static std::vector<std::string> COCO_names{
+	"N/A", "person", "bicycle", "car", "motorcycle", "airplane", "bus",	"train", "truck", "boat", "traffic light", "fire hydrant", "N/A",
+	"stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "N/A", "backpack",
+	"umbrella", "N/A", "N/A", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove",
+	"skateboard", "surfboard", "tennis racket", "bottle", "N/A", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
+	"orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch", "potted plant", "bed", "N/A", "dining table", "N/A",
+	"N/A", "toilet", "N/A", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "N/A",
+	"book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+};
+
+IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, const std::string& lname, float eps = 1e-5);
+ILayer* BasicStem(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int out_channels, int group_num = 1);
+ITensor* BasicBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int in_channels, int out_channels, int stride = 1);
+ITensor* BottleneckBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int in_channels, int bottleneck_channels, int out_channels, int stride = 1, int dilation = 1, int group_num = 1);
+ITensor* MakeStage(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& input, int stage, RESNETTYPE resnet_type, int in_channels, int bottleneck_channels, int out_channels, int first_stride = 1, int dilation = 1);
+ITensor* BuildResNet(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, RESNETTYPE resnet_type, int stem_out_channels, int bottleneck_channels, int res2_out_channels, int res5_dilation = 1);
+ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int num_pos_feats = 64, int temperature = 10000);
+ITensor* MultiHeadAttention(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& query, ITensor& key, ITensor& value, int embed_dim = 256, int num_heads = 8);
+ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::map<std::string, Weights>& weightMap, const std::string& lname, int d_model = 256);
+ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
+ITensor* TransformerEncoder(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int num_layers = 6);
+ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
+ITensor* TransformerDecoder(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
+ITensor* Transformer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries = 100, int num_encoder_layers = 6, int num_decoder_layers = 6, int d_model = 256, int nhead = 8, int dim_feedforward = 2048);
+ITensor* MLP(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, int num_layers = 3, int hidden_dim = 256, int output_dim = 4);
+std::vector<ITensor*> Predict(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* src);
 
 void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName) {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 
-	std::unordered_map<std::string, Weights> weightMap;
-	loadWeights("../DETR_py/detr.wts", weightMap);
+	std::map<std::string, Weights> weightMap = loadWeights("../DETR_py/detr.wts");
 
 	// build network
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ INPUT_C, INPUT_H, INPUT_W });
@@ -122,10 +115,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	//config->setMaxWorkspaceSize(18 * (1 << 23));  // 18MB
-	config->setMaxWorkspaceSize(28 * (1 << 23));  // 28MB
-	//config->setMaxWorkspaceSize(1ULL << 30);
-	//config->clearFlag(BuilderFlag::kTF32);
+	config->setMaxWorkspaceSize(1ULL << 30);  // 1,024MB
 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -264,7 +254,6 @@ int main()
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
-		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
 		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 		CHECK(cudaMemcpyAsync(buffers[0], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
@@ -281,7 +270,12 @@ int main()
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
 	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time : " << dur_time << " [milliseconds]" << std::endl;
+	std::cout << iter_count << " th Iteration" << std::endl;
+	std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
+	std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
+	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
+	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
+	std::cout << "==================================================" << std::endl;
 
 	// 이미지 출력 로직
 	//prob [100, 91]
@@ -341,40 +335,7 @@ int main()
 }
 
 
-void loadWeights(const std::string file, std::unordered_map<std::string, Weights>& weightMap) {
-	std::cout << "Loading weights: " << file << std::endl << std::endl;
-
-	// Open weights file
-	std::ifstream input(file);
-	assert(input.is_open() && "Unable to load weight file. please check if the .wts file path is right!!!!!!");
-
-	// Read number of weight blobs
-	int32_t count;
-	input >> count;
-	assert(count > 0 && "Invalid weight map file.");
-
-	while (count--) {
-		Weights wt{ DataType::kFLOAT, nullptr, 0 };
-		uint32_t size;
-
-		// Read name and type of blob
-		std::string name;
-		input >> name >> std::dec >> size;
-		wt.type = DataType::kFLOAT;
-
-		// Load blob
-		uint32_t* val = reinterpret_cast<uint32_t*>(malloc(sizeof(val) * size));
-		for (uint32_t x = 0, y = size; x < y; ++x) {
-			input >> std::hex >> val[x];
-		}
-		wt.values = val;
-
-		wt.count = size;
-		weightMap[name] = wt;
-	}
-}
-
-IScaleLayer* addBatchNorm2d(INetworkDefinition *network,std::unordered_map<std::string, Weights>& weightMap,ITensor& input,	const std::string& lname,float eps) {
+IScaleLayer* addBatchNorm2d(INetworkDefinition *network,std::map<std::string, Weights>& weightMap,ITensor& input,	const std::string& lname,float eps) {
 	float *gamma = (float*)(weightMap[lname + ".weight"].values);
 	float *beta = (float*)(weightMap[lname + ".bias"].values);
 	float *mean = (float*)(weightMap[lname + ".running_mean"].values);
@@ -407,7 +368,7 @@ IScaleLayer* addBatchNorm2d(INetworkDefinition *network,std::unordered_map<std::
 	return scale_1;
 }
 
-ILayer* BasicStem(INetworkDefinition *network,std::unordered_map<std::string, Weights>& weightMap,const std::string& lname,	ITensor& input,	int out_channels,int group_num) {
+ILayer* BasicStem(INetworkDefinition *network,std::map<std::string, Weights>& weightMap,const std::string& lname, ITensor& input, int out_channels,int group_num) {
 	// conv1
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 	IConvolutionLayer* conv1 = network->addConvolutionNd(input,	out_channels,DimsHW{ 7, 7 },weightMap[lname + ".conv1.weight"],	emptywts);
@@ -429,7 +390,7 @@ ILayer* BasicStem(INetworkDefinition *network,std::unordered_map<std::string, We
 	return max_pool2d;
 }
 
-ITensor* BasicBlock(INetworkDefinition *network,std::unordered_map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int in_channels,int out_channels,int stride) {
+ITensor* BasicBlock(INetworkDefinition *network,std::map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int in_channels,int out_channels,int stride) {
 	// conv1
 	IConvolutionLayer* conv1 = network->addConvolutionNd(input,	out_channels,DimsHW{ 3, 3 },weightMap[lname + ".conv1.weight"],	weightMap[lname + ".conv1.bias"]);
 	assert(conv1);
@@ -467,7 +428,7 @@ ITensor* BasicBlock(INetworkDefinition *network,std::unordered_map<std::string, 
 	return r3->getOutput(0);
 }
 
-ITensor* BottleneckBlock(INetworkDefinition *network,std::unordered_map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int in_channels,int bottleneck_channels,int out_channels,int stride,int dilation,int group_num) {
+ITensor* BottleneckBlock(INetworkDefinition *network,std::map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int in_channels,int bottleneck_channels,int out_channels,int stride,int dilation,int group_num) {
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 	// conv1
 	IConvolutionLayer* conv1 = network->addConvolutionNd(input,	bottleneck_channels,DimsHW{ 1, 1 },	weightMap[lname + ".conv1.weight"],	emptywts);
@@ -530,7 +491,7 @@ ITensor* BottleneckBlock(INetworkDefinition *network,std::unordered_map<std::str
 	return r3->getOutput(0);
 }
 
-ITensor* MakeStage(INetworkDefinition *network,	std::unordered_map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int stage,RESNETTYPE resnet_type,int in_channels,int bottleneck_channels,int out_channels,int first_stride,int dilation) {
+ITensor* MakeStage(INetworkDefinition *network,	std::map<std::string, Weights>& weightMap,const std::string& lname,ITensor& input,int stage,RESNETTYPE resnet_type,int in_channels,int bottleneck_channels,int out_channels,int first_stride,int dilation) {
 	ITensor* out = &input;
 	for (int i = 0; i < stage; i++) {
 		std::string layerName = lname + "." + std::to_string(i);
@@ -546,7 +507,7 @@ ITensor* MakeStage(INetworkDefinition *network,	std::unordered_map<std::string, 
 	return out;
 }
 
-ITensor* BuildResNet(INetworkDefinition *network,std::unordered_map<std::string, Weights>& weightMap,ITensor& input,RESNETTYPE resnet_type,int stem_out_channels,int bottleneck_channels,int res2_out_channels,int res5_dilation) {
+ITensor* BuildResNet(INetworkDefinition *network,std::map<std::string, Weights>& weightMap,ITensor& input,RESNETTYPE resnet_type,int stem_out_channels,int bottleneck_channels,int res2_out_channels,int res5_dilation) {
 	assert(res5_dilation == 1 || res5_dilation == 2);  // "res5_dilation must be 1 or 2"
 	if (resnet_type == R18 || resnet_type == R34) {
 		assert(res2_out_channels == 64);  // "res2_out_channels must be 64 for R18/R34")
@@ -572,7 +533,7 @@ ITensor* BuildResNet(INetworkDefinition *network,std::unordered_map<std::string,
 }
 
 
-ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor& input, int num_pos_feats, int temperature) {
+ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int num_pos_feats, int temperature) {
 	// refer to https://github.com/facebookresearch/detr/blob/master/models/position_encoding.py#12
 	// TODO: improve this implementation
 	auto mask_dim = input.getDimensions();
@@ -642,7 +603,7 @@ ITensor* PositionEmbeddingSine(INetworkDefinition *network, std::unordered_map<s
 	return pos_embed->getOutput(0);
 }
 
-ITensor* MultiHeadAttention(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& query, ITensor& key, ITensor& value, int embed_dim, int num_heads) {
+ITensor* MultiHeadAttention(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& query, ITensor& key, ITensor& value, int embed_dim, int num_heads) {
 	int tgt_len = query.getDimensions().d[0];
 	int head_dim = embed_dim / num_heads;
 
@@ -703,7 +664,7 @@ ITensor* MultiHeadAttention(INetworkDefinition *network, std::unordered_map<std:
 	return linear_attn->getOutput(0);
 }
 
-ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, int d_model) {
+ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::map<std::string, Weights>& weightMap, const std::string& lname, int d_model) {
 	// TODO: maybe a better implementation https://github.com/NVIDIA/TensorRT/blob/master/plugin/common/common.cuh#212
 	auto mean = network->addReduce(input, ReduceOperation::kAVG, 2, true);
 	assert(mean);
@@ -744,7 +705,7 @@ ITensor* LayerNorm(INetworkDefinition *network, ITensor& input, std::unordered_m
 	return affine->getOutput(0);
 }
 
-ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int d_model, int nhead, int dim_feedforward) {
+ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int d_model, int nhead, int dim_feedforward) {
 	auto pos_embed = network->addElementWise(src, pos, ElementWiseOperation::kSUM);
 	assert(pos_embed);
 	//return pos_embed->getOutput(0);// 수정 필요
@@ -775,7 +736,7 @@ ITensor* TransformerEncoderLayer(INetworkDefinition *network, std::unordered_map
 	return norm2;
 }
 
-ITensor* TransformerEncoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int num_layers) {
+ITensor* TransformerEncoder(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos, int num_layers) {
 	ITensor* out = &src;
 	//num_layers = 1; // 수정 필요
 	for (int i = 0; i < num_layers; i++) {
@@ -785,7 +746,7 @@ ITensor* TransformerEncoder(INetworkDefinition *network, std::unordered_map<std:
 	return out;
 }
 
-ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int d_model, int nhead, int dim_feedforward) {
+ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int d_model, int nhead, int dim_feedforward) {
 	auto pos_embed = network->addElementWise(tgt, query_pos, ElementWiseOperation::kSUM);
 	assert(pos_embed);
 
@@ -826,7 +787,7 @@ ITensor* TransformerDecoderLayer(INetworkDefinition *network, std::unordered_map
 	return norm3;
 }
 
-ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers, int d_model, int nhead, int dim_feedforward) {
+ITensor* TransformerDecoder(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& tgt, ITensor& memory, ITensor& pos, ITensor& query_pos, int num_layers, int d_model, int nhead, int dim_feedforward) {
 	ITensor* out = &tgt;
 	//std::vector<ITensor*> keeps;
 	for (int i = 0; i < num_layers; i++) {
@@ -845,7 +806,7 @@ ITensor* TransformerDecoder(INetworkDefinition *network, std::unordered_map<std:
 	//return data;
 }
 
-ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries, int num_encoder_layers, int num_decoder_layers, int d_model, int nhead, int dim_feedforward) {
+ITensor* Transformer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, ITensor& pos_embed, int num_queries, int num_encoder_layers, int num_decoder_layers, int d_model, int nhead, int dim_feedforward) {
 	auto memory = TransformerEncoder(network, weightMap, lname + ".encoder", src, pos_embed, num_encoder_layers);
 	//return memory; // 수정 필요
 
@@ -866,7 +827,7 @@ ITensor* Transformer(INetworkDefinition *network, std::unordered_map<std::string
 	return out;
 }
 
-ITensor* MLP(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, int num_layers, int hidden_dim, int output_dim) {
+ITensor* MLP(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, const std::string& lname, ITensor& src, int num_layers, int hidden_dim, int output_dim) {
 	ITensor* out = &src;
 	for (int i = 0; i < num_layers; i++) {
 		std::string layer_name = lname + "." + std::to_string(i);
@@ -886,7 +847,7 @@ ITensor* MLP(INetworkDefinition *network, std::unordered_map<std::string, Weight
 	return out;
 }
 
-std::vector<ITensor*> Predict(INetworkDefinition *network, std::unordered_map<std::string, Weights>& weightMap, ITensor* src) {
+std::vector<ITensor*> Predict(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* src) {
 	auto class_embed = network->addFullyConnected(*src, NUM_CLASS, weightMap["class_embed.weight"], weightMap["class_embed.bias"]);
 	assert(class_embed);
 	auto class_softmax = network->addSoftMax(*class_embed->getOutput(0));

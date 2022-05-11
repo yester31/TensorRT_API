@@ -30,7 +30,7 @@ def infer(img, net, half):
     img4 = img3.astype(np.float32)  # uint -> float32
     img4 /= 255  # 1/255
     tofile(img4, "../Validation_py/py_0")
-    exit(0)
+    #exit(0)
     img5 = torch.from_numpy(img4)  # numpy -> tensor
     if half:
         img5 = img5.half()
@@ -78,7 +78,7 @@ def main():
     # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
     out = infer(img1, net, half)
     tofile(out.cpu().data.numpy(), '../Validation_py/py')
-    if 0 :
+    if 1 :
         dur_time = 0
         iteration = 100
         for i in range(iteration):

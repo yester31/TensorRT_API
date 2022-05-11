@@ -94,7 +94,7 @@ def main():
             print()
         exit()
 
-    if 0:
+    if 1:
         if os.path.isfile('vgg11.wts'):
             print('Already, vgg11.wts file exists.')
         else:

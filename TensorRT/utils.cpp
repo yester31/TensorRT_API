@@ -1,15 +1,8 @@
-﻿#include <io.h>
-#include <iostream>
-#include <fstream>
-#include <iomanip>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <opencv2/opencv.hpp>
+﻿#include "utils.hpp"
 
 // 파일 이름 가져오기(DFS) window용
 // full path name
-int SearchFile(const std::string& folder_path, std::vector<std::string> &file_names, bool recursive = false)
+int SearchFile(const std::string& folder_path, std::vector<std::string> &file_names, bool recursive)
 {
 	_finddata_t file_info;
 	std::string any_file_pattern = folder_path + "\\*";
@@ -52,7 +45,7 @@ int SearchFile(const std::string& folder_path, std::vector<std::string> &file_na
 	return 0;
 }
 
-void valueCheck(std::vector<float>& Input, int IN = 1, int IC = 1, int IH = 1, int IW = 1, bool one = false) {
+void valueCheck(std::vector<float>& Input, int IN, int IC, int IH, int IW, bool one) {
 	std::cout << "===== valueCheck func =====" << std::endl;
 	if (one) IN = 1;
 	int tot = IN * IC * IH * IW;
@@ -82,7 +75,7 @@ void valueCheck(std::vector<float>& Input, int IN = 1, int IC = 1, int IH = 1, i
 	}
 }
 
-void initTensor(std::vector<float>& output, float start = 1, float step = 0)
+void initTensor(std::vector<float>& output, float start, float step)
 {
 	std::cout << "===== InitTensor func (scalar or step)=====" << std::endl;
 	float count = start;
@@ -92,7 +85,7 @@ void initTensor(std::vector<float>& output, float start = 1, float step = 0)
 	}
 }
 
-void initTensor(std::vector<float>& output, std::string random, float min = -10.f, float max = 10.f)
+void initTensor(std::vector<float>& output, std::string random, float min, float max)
 {
 	std::cout << "===== InitTensor func (random value) =====" << std::endl;
 
@@ -101,7 +94,7 @@ void initTensor(std::vector<float>& output, std::string random, float min = -10.
 	}
 }
 
-void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start = 1, float step = 0) {
+void initTensor(std::vector<float>& output, int N, int C, int H, int W, float start, float step) {
 	std::cout << "===== scalarTensor func =====" << std::endl;
 	std::cout << "Tensor[" << N << "][" << C << "][" << H << "][" << W << "]" << std::endl << std::endl;
 	int tot_size = N * C * H * W;
@@ -120,3 +113,51 @@ int argMax(std::vector<float> &output) {
 
 
 
+std::map<std::string, nvinfer1::Weights> loadWeights(const std::string file)
+{
+	std::cout << "Loading weights: " << file << std::endl;
+	std::map<std::string, nvinfer1::Weights> weightMap;
+
+	// Open weights file
+	std::ifstream input(file);
+	assert(input.is_open() && "Unable to load weight file.");
+
+	// Read number of weight blobs
+	int32_t count;
+	input >> count;
+	assert(count > 0 && "Invalid weight map file.");
+
+	while (count--)
+	{
+		nvinfer1::Weights wt{ nvinfer1::DataType::kFLOAT, nullptr, 0 };
+		uint32_t size;
+
+		// Read name and type of blob
+		std::string name;
+		input >> name >> std::dec >> size;
+		wt.type = nvinfer1::DataType::kFLOAT;
+
+		// Load blob
+		uint32_t* val = reinterpret_cast<uint32_t*>(malloc(sizeof(val) * size));
+		for (uint32_t x = 0, y = size; x < y; ++x)
+		{
+			input >> std::hex >> val[x];
+		}
+		wt.values = val;
+
+		wt.count = size;
+		weightMap[name] = wt;
+	}
+
+	return weightMap;
+}
+
+void show_dims(nvinfer1::ITensor* tensor)
+{
+	std::cout << "=== show dims ===" << std::endl;
+	int dims = tensor->getDimensions().nbDims;
+	std::cout << "size :: " << dims << std::endl;
+	for (int i = 0; i < dims; i++) {
+		std::cout << tensor->getDimensions().d[i] << std::endl;
+	}
+}

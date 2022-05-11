@@ -1,11 +1,6 @@
 // 2021-8-19 by YH PARK 
 // custom plugin 만들기 (전처리 기능을 수행하는 레이어)
 // preprocess(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1](Normalize))
-#include "cuda_runtime_api.h"
-#include "NvInferRuntime.h"
-#include "NvInfer.h"
-#include "NvInferPlugin.h"
-#include "opencv2/opencv.hpp"
 #include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
@@ -16,6 +11,7 @@ sample::Logger gLogger;
 void main() 
 {
 	std::cout << "===== custom plugin example start =====" << std::endl;
+	char engineFileName[] = "../Engine/plugin_test.engine";
 
 	// 0. 이미지들의 저장 경로 불러오기
 	std::string img_dir = "../TestDate/";
@@ -45,6 +41,7 @@ void main()
 		memcpy(input.data(), ori_img.data, batch_size * input_height * input_width * input_channel * sizeof(uint8_t));
 	}
 	std::cout << "===== input load done =====" << std::endl;
+
 	//==========================================================================================
 
 	std::cout << "===== Create TensorRT Model =====" << std::endl; // TensorRT 모델 만들기 시작
@@ -56,11 +53,11 @@ void main()
 	INetworkDefinition* network = builder->createNetworkV2(0U);
 	
 	// 입력(Input) 레이어 생성
-	ITensor* input_tensor = network->addInput(INPUT_NAME, nvinfer1::DataType::kFLOAT, Dims3{  input_height, input_width, input_channel }); // [N,C,H,W]
+	ITensor* input_tensor = network->addInput(INPUT_NAME, nvinfer1::DataType::kFLOAT, Dims3{input_height, input_width, input_channel }); // [N,C,H,W]
 	
 	// Custom(preprocess) plugin 사용하기
 	// Custom(preprocess) plugin에서 사용할 구조체 객체 생성
-	Preprocess preprocess{batch_size, input_channel, input_height, input_width};
+	Preprocess preprocess{batch_size, input_channel, input_height, input_width, 0};
 	// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");
 	// Custom(preprocess) plugin 생성
@@ -72,24 +69,25 @@ void main()
 	network->markOutput(*preprocess_layer->getOutput(0));// preprocess_layer의 출력값을 모델 Output으로 설정
 
 	builder->setMaxBatchSize(maxBatchSize); // 모델의 배치 사이즈 설정
-	config->setMaxWorkspaceSize(1 << 22);	// 엔진 생성을 위해 사용할 메모리 공간 설정
-	IHostMemory* engine0 = builder->buildSerializedNetwork(*network, *config); // 엔진 생성(빌드)
-	network->destroy();
-	builder->destroy();
-	config->destroy();
-	std::cout << "===== build work done =====" << std::endl;
-	//==========================================================================================
+	config->setMaxWorkspaceSize(1ULL << 28); // 256MB, 엔진 생성을 위해 사용할 메모리 공간 설정
 
-	// 엔진 serialzie 작업 
-	char engineFileName[] = "../Engine/plugin_test.engine";
+	std::cout << "Building engine, please wait for a while..." << std::endl;
+	IHostMemory* engine0 = builder->buildSerializedNetwork(*network, *config); // 엔진 생성(빌드)
+	std::cout << "==== model build done ====" << std::endl << std::endl;
+
+	std::cout << "==== model selialize start ====" << std::endl << std::endl;
 	std::ofstream p(engineFileName, std::ios::binary);
 	if (!p) {
 		std::cerr << "could not open plan output file" << std::endl;
 	}
 	p.write(reinterpret_cast<const char*>(engine0->data()), engine0->size());
+	std::cout << "==== model selialize done ====" << std::endl << std::endl;
+	builder->destroy();
+	config->destroy();
 	engine0->destroy();
-	std::cout << "===== engine serialzie work done =====" << std::endl;
+	network->destroy();
 	//==========================================================================================
+
 	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;
 	char *trtModelStream{ nullptr };// 저장된 스트림을 저장할 변수
 	size_t size{ 0 };
@@ -106,6 +104,8 @@ void main()
 	else {
 		std::cout << "[ERROR] Engine file load error" << std::endl;
 	}
+	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;
+
 	IRuntime* runtime = createInferRuntime(gLogger);
 	ICudaEngine* engine = runtime->deserializeCudaEngine(trtModelStream, size);
 	IExecutionContext* context = engine->createExecutionContext();

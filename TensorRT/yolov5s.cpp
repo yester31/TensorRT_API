@@ -1,15 +1,3 @@
-#include "NvInfer.h"
-#include "cuda_runtime_api.h"
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <vector>
-#include <chrono>
-#include <algorithm>
-#include "opencv2/opencv.hpp"
-#include <string>
-#include <io.h>				// access
 #include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
 #include "yololayer.hpp"	// yololayer plugin 
@@ -38,6 +26,17 @@ static const float  gw = 0.50;
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
 
+// COCO dataset class names2
+static std::vector<std::string> COCO_names2{
+	"person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
+	"stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+	"backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat",
+	"baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+	"banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant",
+	"bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster",
+	"sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+};
+
 static int get_width(int x, float gw, int divisor = 8) {
 	return int(ceil((x * gw) / divisor)) * divisor;
 }
@@ -51,54 +50,12 @@ static int get_depth(int x, float gd) {
 	return std::max<int>(r, 1);
 }
 
-// Load weights from files shared with TensorRT samples.
-// TensorRT weight files have a simple space delimited format:
-// [type] [size] <data x size in hex>
-std::map<std::string, Weights> loadWeights(const std::string file){
-	std::cout << "Loading weights: " << file << std::endl;
-	std::map<std::string, Weights> weightMap;
-
-	// Open weights file
-	std::ifstream input(file);
-	assert(input.is_open() && "Unable to load weight file.");
-
-	// Read number of weight blobs
-	int32_t count;
-	input >> count;
-	assert(count > 0 && "Invalid weight map file.");
-
-	while (count--)
-	{
-		Weights wt{ DataType::kFLOAT, nullptr, 0 };
-		uint32_t size;
-
-		// Read name and type of blob
-		std::string name;
-		input >> name >> std::dec >> size;
-		wt.type = DataType::kFLOAT;
-
-		// Load blob
-		uint32_t* val = reinterpret_cast<uint32_t*>(malloc(sizeof(val) * size));
-		for (uint32_t x = 0, y = size; x < y; ++x)
-		{
-			input >> std::hex >> val[x];
-		}
-		wt.values = val;
-
-		wt.count = size;
-		weightMap[name] = wt;
-	}
-
-	return weightMap;
-}
-
 IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps);
 ILayer* convBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int ksize, int s, int g, std::string lname);
 ILayer* bottleneck(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int c1, int c2, bool shortcut, int g, float e, std::string lname);
 ILayer* C3(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int c1, int c2, int n, bool shortcut, int g, float e, std::string lname);
 ILayer* SPPF(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int c1, int c2, int k, std::string lname);
 ITensor* add_YoLoLayer(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, std::string lname, ITensor& input, int grid_stride);
-
 
 cv::Rect get_rect(cv::Mat& img, float bbox[4]) {
 	float nw, nh, nx,ny;
@@ -272,7 +229,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(16 * (1 << 20));  // 16MB
+	config->setMaxWorkspaceSize(1ULL << 31);  // 2,048MB
 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -464,7 +421,6 @@ int main()
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
-		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
 		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 		CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
@@ -480,10 +436,11 @@ int main()
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
 	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time : " << dur_time << " [milliseconds]" << std::endl;
-	//int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
-	//std::cout << "Index : " << max_index << ", Feature_value : " << outputs[max_index] << std::endl;
-	//std::cout << "Class Name : " << COCO_names[max_index] << std::endl;
+	std::cout << iter_count << " th Iteration" << std::endl;
+	std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
+	std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
+	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
+	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
 	std::cout << "==================================================" << std::endl;
 
 	// Release stream and buffers ...

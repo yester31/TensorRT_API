@@ -1,16 +1,4 @@
-﻿#include "NvInfer.h"
-#include "cuda_runtime_api.h"
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <vector>
-#include <chrono>
-#include <algorithm>
-#include "opencv2/opencv.hpp"
-#include <string>
-#include <io.h>				//access
-#include "utils.hpp"		// custom function
+﻿#include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
 #include "logging.hpp"	
 #include "calibrator.h"		// ptq
@@ -29,156 +17,11 @@ static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
 
-// Load weights from files shared with TensorRT samples.
-// TensorRT weight files have a simple space delimited format:
-// [type] [size] <data x size in hex>
-std::map<std::string, Weights> loadWeights(const std::string file)
-{
-	std::cout << "Loading weights: " << file << std::endl;
-	std::map<std::string, Weights> weightMap;
-	// Open weights file
-	std::ifstream input(file);
-	assert(input.is_open() && "Unable to load weight file.");
-	// Read number of weight blobs
-	int32_t count;
-	input >> count;
-	assert(count > 0 && "Invalid weight map file.");
-	while (count--)
-	{
-		Weights wt{ DataType::kFLOAT, nullptr, 0 };
-		uint32_t size;
-
-		// Read name and type of blob
-		std::string name;
-		input >> name >> std::dec >> size;
-		wt.type = DataType::kFLOAT;
-
-		// Load blob
-		uint32_t* val = reinterpret_cast<uint32_t*>(malloc(sizeof(val) * size));
-		for (uint32_t x = 0, y = size; x < y; ++x)
-		{
-			input >> std::hex >> val[x];
-		}
-		wt.values = val;
-		wt.count = size;
-		weightMap[name] = wt;
-	}
-	return weightMap;
-}
-
-IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps) {
-	float *gamma = (float*)weightMap[lname + ".weight"].values;
-	float *beta = (float*)weightMap[lname + ".bias"].values;
-	float *mean = (float*)weightMap[lname + ".running_mean"].values;
-	float *var = (float*)weightMap[lname + ".running_var"].values;
-	int len = weightMap[lname + ".running_var"].count;
-
-	float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		scval[i] = gamma[i] / sqrt(var[i] + eps);
-	}
-	Weights scale{ DataType::kFLOAT, scval, len };
-
-	float *shval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		shval[i] = beta[i] - mean[i] * gamma[i] / sqrt(var[i] + eps);
-	}
-	Weights shift{ DataType::kFLOAT, shval, len };
-
-	float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-	for (int i = 0; i < len; i++) {
-		pval[i] = 1.0;
-	}
-	Weights power{ DataType::kFLOAT, pval, len };
-
-	weightMap[lname + ".scale"] = scale;
-	weightMap[lname + ".shift"] = shift;
-	weightMap[lname + ".power"] = power;
-	IScaleLayer* scale_1 = network->addScale(input, ScaleMode::kCHANNEL, shift, scale, power);
-	assert(scale_1);
-	return scale_1;
-}
-
-ILayer* doubleConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int ksize, std::string lname, int midch) {
-
-	IConvolutionLayer* conv1 = network->addConvolutionNd(input, midch, DimsHW{ ksize, ksize }, weightMap[lname + ".double_conv.0.weight"], weightMap[lname + ".double_conv.0.bias"]);
-	conv1->setStrideNd(DimsHW{ 1, 1 });
-	conv1->setPaddingNd(DimsHW{ 1, 1 });
-	conv1->setNbGroups(1);
-	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + ".double_conv.1", 1E-05);
-	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
-	IConvolutionLayer* conv2 = network->addConvolutionNd(*relu1->getOutput(0), outch, DimsHW{ 3, 3 }, weightMap[lname + ".double_conv.3.weight"], weightMap[lname + ".double_conv.3.bias"]);
-	conv2->setStrideNd(DimsHW{ 1, 1 });
-	conv2->setPaddingNd(DimsHW{ 1, 1 });
-	conv2->setNbGroups(1);
-	IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + ".double_conv.4", 1E-05);
-	IActivationLayer* relu2 = network->addActivation(*bn2->getOutput(0), ActivationType::kRELU);
-	assert(relu2);
-	return relu2;
-}
-
-ILayer* down(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int p, std::string lname) {
-
-	IPoolingLayer* pool1 = network->addPoolingNd(input, PoolingType::kMAX, DimsHW{ 2, 2 });
-	assert(pool1);
-	ILayer* dcov1 = doubleConv(network, weightMap, *pool1->getOutput(0), outch, 3, lname + ".maxpool_conv.1", outch);
-	assert(dcov1);
-	return dcov1;
-}
-
-ILayer* up(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input1, ITensor& input2, int resize, int outch, int midch, std::string lname) {
-	float *deval = reinterpret_cast<float*>(malloc(sizeof(float) * resize * 2 * 2));
-	for (int i = 0; i < resize * 2 * 2; i++) {
-		deval[i] = 1.0;
-	}
-	ITensor* upsampleTensor;
-	if (false) {
-		Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
-		Weights deconvwts1{ DataType::kFLOAT, deval, resize * 2 * 2 };
-		IDeconvolutionLayer* deconv1 = network->addDeconvolutionNd(input1, resize, DimsHW{ 2, 2 }, deconvwts1, emptywts);
-		deconv1->setStrideNd(DimsHW{ 2, 2 });
-		deconv1->setNbGroups(resize);
-		weightMap["deconvwts." + lname] = deconvwts1;
-		upsampleTensor = deconv1->getOutput(0);
-	}
-	else {
-		IResizeLayer* resize = network->addResize(input1);
-		std::vector<float> scale{ 1.f, 2, 2 };
-		resize->setScales(scale.data(), scale.size());
-		resize->setAlignCorners(true);
-		resize->setResizeMode(ResizeMode::kLINEAR);
-		upsampleTensor = resize->getOutput(0);
-	}
-
-	int diffx = input2.getDimensions().d[1] - upsampleTensor->getDimensions().d[1];
-	int diffy = input2.getDimensions().d[2] - upsampleTensor->getDimensions().d[2];
-
-	ILayer* pad1 = network->addPaddingNd(*upsampleTensor, DimsHW{ diffx / 2, diffy / 2 }, DimsHW{ diffx - (diffx / 2), diffy - (diffy / 2) });
-	ITensor* inputTensors[] = { &input2,pad1->getOutput(0) };
-	auto cat = network->addConcatenation(inputTensors, 2);
-	assert(cat);
-	if (midch == 64) {
-		ILayer* dcov1 = doubleConv(network, weightMap, *cat->getOutput(0), outch, 3, lname + ".conv", outch);
-		assert(dcov1);
-		return dcov1;
-	}
-	else {
-		int midch1 = outch / 2;
-		ILayer* dcov1 = doubleConv(network, weightMap, *cat->getOutput(0), midch1, 3, lname + ".conv", outch);
-		assert(dcov1);
-		return dcov1;
-	}
-}
-
-ILayer* outConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, std::string lname) {
-	IConvolutionLayer* conv1 = network->addConvolutionNd(input, class_count, DimsHW{ 1, 1 }, weightMap[lname + ".conv.weight"], weightMap[lname + ".conv.bias"]);
-	assert(conv1);
-	conv1->setStrideNd(DimsHW{ 1, 1 });
-	conv1->setPaddingNd(DimsHW{ 0, 0 });
-	conv1->setNbGroups(1);
-	conv1->setName("[last_layer]"); // layer 이름 설정
-	return conv1;
-}
+ILayer* outConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, std::string lname);
+ILayer* up(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input1, ITensor& input2, int resize, int outch, int midch, std::string lname);
+ILayer* down(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int p, std::string lname);
+ILayer* doubleConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int ksize, std::string lname, int midch);
+IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps);
 
 void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName) {
 	INetworkDefinition* network = builder->createNetworkV2(0U);
@@ -187,7 +30,6 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
 	ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ 3, INPUT_H, INPUT_W });
-	assert(data);
 
 	Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 0 };// Custom(preprocess) plugin 사용하기
 	IPluginCreator* preprocess_creator = getPluginRegistry()->getPluginCreator("preprocess", "1");// Custom(preprocess) plugin을 global registry에 등록 및 plugin Creator 객체 생성
@@ -211,9 +53,13 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	//config->setMaxWorkspaceSize(28 * (1 << 23));  // 16MB
-	config->setMaxWorkspaceSize(1ULL << 30);
-	//config->clearFlag(BuilderFlag::kTF32);
+	config->setMaxWorkspaceSize(1ULL << 31);  // 2,048MB
+
+	//std::cout << (1ULL << 30) << std::endl << std::endl; // 1,024MB
+	//std::cout << (1ULL << 31) << std::endl << std::endl; // 2,048MB
+	//std::cout << 28 * (1 << 23) << std::endl << std::endl; // 224MB
+	//std::cout << 28 * (1 << 24) << std::endl << std::endl; // 448MB
+	//std::cout << 16 * (1 << 20) << std::endl << std::endl; // 16MB
 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -372,6 +218,8 @@ int main()
 	// CUDA 스트림 생성
 	cudaStream_t stream;
 	CHECK(cudaStreamCreate(&stream));
+
+	//warm-up
 	CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 	context->enqueue(maxBatchSize, buffers, stream, nullptr);
 	CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
@@ -381,7 +229,6 @@ int main()
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
-		// DMA input batch data to device, infer on the batch asynchronously, and DMA output back to host
 		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 		CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
@@ -397,8 +244,13 @@ int main()
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
 	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
-	std::cout << iter_count << " th Iteration, Total dur time : " << dur_time << " [milliseconds]" << std::endl;
-	
+	std::cout << iter_count << " th Iteration" << std::endl;
+	std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
+	std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
+	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
+	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
+	std::cout << "==================================================" << std::endl;
+
 	// 이미지 출력 로직
 	std::vector<uint8_t> show_img(maxBatchSize * INPUT_C * INPUT_H * INPUT_W);
 	std::vector<float> prob(maxBatchSize * INPUT_H * INPUT_W);
@@ -441,4 +293,116 @@ int main()
 	runtime->destroy();
 
 	return 0;
+}
+
+IScaleLayer* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps) 
+{
+	float *gamma = (float*)weightMap[lname + ".weight"].values;
+	float *beta = (float*)weightMap[lname + ".bias"].values;
+	float *mean = (float*)weightMap[lname + ".running_mean"].values;
+	float *var = (float*)weightMap[lname + ".running_var"].values;
+	int len = weightMap[lname + ".running_var"].count;
+
+	float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+	for (int i = 0; i < len; i++) {
+		scval[i] = gamma[i] / sqrt(var[i] + eps);
+	}
+	Weights scale{ DataType::kFLOAT, scval, len };
+
+	float *shval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+	for (int i = 0; i < len; i++) {
+		shval[i] = beta[i] - mean[i] * gamma[i] / sqrt(var[i] + eps);
+	}
+	Weights shift{ DataType::kFLOAT, shval, len };
+
+	float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+	for (int i = 0; i < len; i++) {
+		pval[i] = 1.0;
+	}
+	Weights power{ DataType::kFLOAT, pval, len };
+
+	weightMap[lname + ".scale"] = scale;
+	weightMap[lname + ".shift"] = shift;
+	weightMap[lname + ".power"] = power;
+	IScaleLayer* scale_1 = network->addScale(input, ScaleMode::kCHANNEL, shift, scale, power);
+	return scale_1;
+}
+
+
+ILayer* doubleConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int ksize, std::string lname, int midch) 
+{
+	IConvolutionLayer* conv1 = network->addConvolutionNd(input, midch, DimsHW{ ksize, ksize }, weightMap[lname + ".double_conv.0.weight"], weightMap[lname + ".double_conv.0.bias"]);
+	conv1->setStrideNd(DimsHW{ 1, 1 });
+	conv1->setPaddingNd(DimsHW{ 1, 1 });
+	conv1->setNbGroups(1);
+	IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + ".double_conv.1", 1E-05);
+	IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
+	IConvolutionLayer* conv2 = network->addConvolutionNd(*relu1->getOutput(0), outch, DimsHW{ 3, 3 }, weightMap[lname + ".double_conv.3.weight"], weightMap[lname + ".double_conv.3.bias"]);
+	conv2->setStrideNd(DimsHW{ 1, 1 });
+	conv2->setPaddingNd(DimsHW{ 1, 1 });
+	conv2->setNbGroups(1);
+	IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + ".double_conv.4", 1E-05);
+	IActivationLayer* relu2 = network->addActivation(*bn2->getOutput(0), ActivationType::kRELU);
+	return relu2;
+}
+
+
+ILayer* down(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, int p, std::string lname) 
+{
+	IPoolingLayer* pool1 = network->addPoolingNd(input, PoolingType::kMAX, DimsHW{ 2, 2 });
+	ILayer* dcov1 = doubleConv(network, weightMap, *pool1->getOutput(0), outch, 3, lname + ".maxpool_conv.1", outch);
+	return dcov1;
+}
+
+ILayer* up(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input1, ITensor& input2, int resize, int outch, int midch, std::string lname) 
+{
+	float *deval = reinterpret_cast<float*>(malloc(sizeof(float) * resize * 2 * 2));
+	for (int i = 0; i < resize * 2 * 2; i++) {
+		deval[i] = 1.0;
+	}
+	ITensor* upsampleTensor;
+	if (false) {
+		Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
+		Weights deconvwts1{ DataType::kFLOAT, deval, resize * 2 * 2 };
+		IDeconvolutionLayer* deconv1 = network->addDeconvolutionNd(input1, resize, DimsHW{ 2, 2 }, deconvwts1, emptywts);
+		deconv1->setStrideNd(DimsHW{ 2, 2 });
+		deconv1->setNbGroups(resize);
+		weightMap["deconvwts." + lname] = deconvwts1;
+		upsampleTensor = deconv1->getOutput(0);
+	}
+	else {
+		IResizeLayer* resize = network->addResize(input1);
+		std::vector<float> scale{ 1.f, 2, 2 };
+		resize->setScales(scale.data(), scale.size());
+		resize->setAlignCorners(true);
+		resize->setResizeMode(ResizeMode::kLINEAR);
+		upsampleTensor = resize->getOutput(0);
+	}
+
+	int diffx = input2.getDimensions().d[1] - upsampleTensor->getDimensions().d[1];
+	int diffy = input2.getDimensions().d[2] - upsampleTensor->getDimensions().d[2];
+
+	ILayer* pad1 = network->addPaddingNd(*upsampleTensor, DimsHW{ diffx / 2, diffy / 2 }, DimsHW{ diffx - (diffx / 2), diffy - (diffy / 2) });
+	ITensor* inputTensors[] = { &input2,pad1->getOutput(0) };
+	auto cat = network->addConcatenation(inputTensors, 2);
+
+	if (midch == 64) {
+		ILayer* dcov1 = doubleConv(network, weightMap, *cat->getOutput(0), outch, 3, lname + ".conv", outch);
+		return dcov1;
+	}
+	else {
+		int midch1 = outch / 2;
+		ILayer* dcov1 = doubleConv(network, weightMap, *cat->getOutput(0), midch1, 3, lname + ".conv", outch);
+		return dcov1;
+	}
+}
+
+ILayer* outConv(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int outch, std::string lname) 
+{
+	IConvolutionLayer* conv1 = network->addConvolutionNd(input, class_count, DimsHW{ 1, 1 }, weightMap[lname + ".conv.weight"], weightMap[lname + ".conv.bias"]);
+	conv1->setStrideNd(DimsHW{ 1, 1 });
+	conv1->setPaddingNd(DimsHW{ 0, 0 });
+	conv1->setNbGroups(1);
+	conv1->setName("[last_layer]"); // layer 이름 설정
+	return conv1;
 }
