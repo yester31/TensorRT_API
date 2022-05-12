@@ -58,15 +58,16 @@ def main():
     #half = True
     half = False
     net = net.eval()                            # vgg 모델을 평가 모드로 세팅
-    net = net.to('cuda:0')                      # gpu 설정
     if half:
         net.half()  # to FP16
+    net = net.to('cuda:0')                      # gpu 설정
+
     #print('model: ', net)                       # 모델 구조 출력
-    summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
+    #summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
 
     img = cv2.imread('../TestDate/panda0.jpg')  # image file load
     dur_time = 0
-    iteration = 100
+    iteration = 1000
 
     # 속도 측정에서 첫 1회 연산 제외하기 위한 계산
     out = infer(img, net, half)

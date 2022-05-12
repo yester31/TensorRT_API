@@ -11,7 +11,7 @@ static const int INPUT_H = 224;
 static const int INPUT_W = 224;
 static const int OUTPUT_SIZE = 1000;
 static const int INPUT_C = 3;
-static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -208,7 +208,7 @@ int main()
 {
 	// 변수 선언 
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "resnet18";
 
 	char engine_file_path[256];
@@ -286,7 +286,7 @@ int main()
 	std::cout << "===== input load done =====" << std::endl << std::endl;
 
 	uint64_t dur_time = 0;
-	uint64_t iter_count = 100;
+	uint64_t iter_count = 1000;
 
 	// CUDA 스트림 생성
 	cudaStream_t stream;
@@ -300,25 +300,25 @@ int main()
 
 	// 5) Inference 수행  
 	for (int i = 0; i < iter_count; i++) {
-		auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		auto start = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
 		CHECK(cudaMemcpyAsync(buffers[inputIndex], input.data(), maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t), cudaMemcpyHostToDevice, stream));
 		context->enqueue(maxBatchSize, buffers, stream, nullptr);
 		CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
 		cudaStreamSynchronize(stream);
 
-		auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - start;
+		auto dur = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count() - start;
 		dur_time += dur;
 		//std::cout << dur << " milliseconds" << std::endl;
 	}
-
+	dur_time /= 1000.f; //microseconds -> milliseconds
 	// 6) 결과 출력
 	std::cout << "==================================================" << std::endl;
 	std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode <<std::endl;
 	std::cout << iter_count << " th Iteration" << std::endl;
 	std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
-	std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
-	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
+	std::cout << "Avg duration time with data transfer : " << dur_time / (float)iter_count << " [milliseconds]" << std::endl;
+	std::cout << "FPS : " << 1000.f / (dur_time / (float)iter_count) << " [frame/sec]" << std::endl;
 	int max_index = max_element(outputs.begin(), outputs.end()) - outputs.begin();
 	std::cout << "Index : " << max_index << ", Probability : " << outputs[max_index] << std::endl;
 	std::cout << "Class Name : " << class_names[max_index] << std::endl;

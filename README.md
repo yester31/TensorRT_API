@@ -40,75 +40,38 @@
 - Match all results with PyTorch
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 224x224x3 image 
 
-[//]: # (<table border="0"  width="100%">)
-
-[//]: # (	<tbody align="center">)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td></td>)
-
-[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8&#40;PTQ&#41;</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Duration time [ms]</td>)
-
-[//]: # (			<td>389 ms</td>)
-
-[//]: # (			<td>330 ms</td>)
-
-[//]: # (			<td>199 ms </td>)
-
-[//]: # (			<td>58 ms</td>)
-
-[//]: # (			<td>40 ms</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>FPS [f/s]</td>)
-
-[//]: # (			<td>257 fps</td>)
-
-[//]: # (			<td>303 fps</td>)
-
-[//]: # (			<td>503 fps</td>)
-
-[//]: # (			<td>1724 fps</td>)
-
-[//]: # (			<td>2500 fps</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Memory [GB]</td>)
-
-[//]: # (			<td>1.449 GB</td>)
-
-[//]: # (			<td>1.421 GB</td>)
-
-[//]: # (			<td>1.356 GB</td>)
-
-[//]: # (			<td>0.922 GB</td>)
-
-[//]: # (			<td>0.870 GB</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (	</tbody>)
-
-[//]: # (</table>)
+<table border="0"  width="100%">
+	<tbody align="center">
+		<tr>
+			<td></td>
+			<td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>
+		</tr>
+		<tr>
+			<td>Precision</td><td>FP32</td><td>FP32</td><td>FP16</td><td>Int8(PTQ)</td>
+		</tr>
+		<tr>
+			<td>Avg Duration time [ms]</td>
+			<td>4.1 ms</td>
+			<td>1.7 ms </td>
+			<td>0.7 ms</td>
+			<td>0.6 ms</td>
+		</tr>
+		<tr>
+			<td>FPS [frame/sec]</td>
+			<td>243 fps</td>
+			<td>590 fps</td>
+			<td>1385 fps</td>
+			<td>1577 fps</td>
+		</tr>
+		<tr>
+			<td>Memory [GB]</td>
+			<td>1.551 GB</td>
+			<td>1.288 GB</td>
+			<td>0.941 GB</td>
+			<td>0.917 GB</td>
+		</tr>
+	</tbody>
+</table>
 
 ***
 
