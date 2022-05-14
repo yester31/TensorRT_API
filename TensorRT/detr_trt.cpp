@@ -144,9 +144,9 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	}
 	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
-
 	engine->destroy();
 	network->destroy();
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{

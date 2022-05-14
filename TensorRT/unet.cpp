@@ -53,13 +53,9 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1ULL << 31);  // 2,048MB
-
-	//std::cout << (1ULL << 30) << std::endl << std::endl; // 1,024MB
-	//std::cout << (1ULL << 31) << std::endl << std::endl; // 2,048MB
+	config->setMaxWorkspaceSize(1ULL << 29);  // 512MB
 	//std::cout << 28 * (1 << 23) << std::endl << std::endl; // 224MB
 	//std::cout << 28 * (1 << 24) << std::endl << std::endl; // 448MB
-	//std::cout << 16 * (1 << 20) << std::endl << std::endl; // 16MB
 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -70,7 +66,8 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		assert(builder->platformHasFastInt8());
 		config->setFlag(BuilderFlag::kINT8);
-		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(1, INPUT_W, INPUT_H,1, "../data_calib/", "../Int8_calib_table/unet_int8_calib.table", INPUT_BLOB_NAME);
+		const char* data_calib_path = "../data_calib/";
+		Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 1, data_calib_path, "../Int8_calib_table/unet_int8_calib.table", INPUT_BLOB_NAME);
 		config->setInt8Calibrator(calibrator);
 	}
 	else {
@@ -91,7 +88,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	engine->destroy();
 	network->destroy();
-
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{
@@ -102,7 +99,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 int main()
 {
 	unsigned int maxBatchSize = 1;	// 생성할 TensorRT 엔진파일에서 사용할 배치 사이즈 값 
-	bool serialize = true;			// Serialize 강제화 시키기(true 엔진 파일 생성)
+	bool serialize = false;			// Serialize 강제화 시키기(true 엔진 파일 생성)
 	char engineFileName[] = "unet";
 	char engine_file_path[256];
 	sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
@@ -281,8 +278,6 @@ int main()
 	cv::Mat frame = cv::Mat(INPUT_H , INPUT_W, CV_8UC3, show_img.data());
 	cv::imshow("result", frame);
 	cv::waitKey(0);
-
-	std::cout << "==================================================" << std::endl;
 
 	// Release...
 	cudaStreamDestroy(stream);

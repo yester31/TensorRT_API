@@ -2,6 +2,7 @@
 #include "preprocess.hpp"	// preprocess plugin 
 #include "postprocess.hpp"	// postprocess plugin 
 #include "logging.hpp"	
+#include "calibrator.h"		// ptq
 
 using namespace nvinfer1;
 sample::Logger gLogger;
@@ -101,13 +102,13 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 	postprocess_layer->setName("postprocess_layer"); 
 
 	ITensor* final_tensor = postprocess_layer->getOutput(0);
-	show_dims(final_tensor);
+	//show_dims(final_tensor);
 	final_tensor->setName(OUTPUT_BLOB_NAME);
 	network->markOutput(*final_tensor);
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1ULL << 31);  // 2,048MB
+	config->setMaxWorkspaceSize(1ULL << 29);  // 512MB
 
 	if (precision_mode == 16) {
 		std::cout << "==== precision f16 ====" << std::endl << std::endl;
@@ -118,7 +119,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		//std::cout << "Your platform support int8: " << builder->platformHasFastInt8() << std::endl;
 		//assert(builder->platformHasFastInt8());
 		//config->setFlag(BuilderFlag::kINT8);
-		//Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 0, "../data_calib/", "../Int8_calib_table/detr_int8_calib.table", INPUT_BLOB_NAME);
+		//Int8EntropyCalibrator2 *calibrator = new Int8EntropyCalibrator2(maxBatchSize, INPUT_W, INPUT_H, 0, "../data_calib/", "../Int8_calib_table/real-esrgan_int8_calib.table", INPUT_BLOB_NAME);
 		//config->setInt8Calibrator(calibrator);
 	}
 	else {
@@ -139,7 +140,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	engine->destroy();
 	network->destroy();
-
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{

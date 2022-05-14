@@ -11,7 +11,7 @@ static const int INPUT_H = 224;
 static const int INPUT_W = 224;
 static const int OUTPUT_SIZE = 1000;
 static const int INPUT_C = 3;
-static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -192,11 +192,10 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 		std::cerr << "could not open plan output file" << std::endl << std::endl;
 	}
 	p.write(reinterpret_cast<const char*>(engine->data()), engine->size());
-
 	std::cout << "==== model selialize done ====" << std::endl << std::endl;
-
 	engine->destroy();
 	network->destroy();
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{

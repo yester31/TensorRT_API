@@ -1,5 +1,5 @@
 // 2021-8-19 by YH PARK 
-// custom plugin 만들기 (전처리 기능을 수행하는 레이어)
+// custom plugin
 // preprocess(NHWC->NCHW, BGR->RGB, [0, 255]->[0, 1](Normalize))
 #include "utils.hpp"		// custom function
 #include "preprocess.hpp"	// preprocess plugin 
@@ -69,7 +69,7 @@ void main()
 	network->markOutput(*preprocess_layer->getOutput(0));// preprocess_layer의 출력값을 모델 Output으로 설정
 
 	builder->setMaxBatchSize(maxBatchSize); // 모델의 배치 사이즈 설정
-	config->setMaxWorkspaceSize(1ULL << 28); // 256MB, 엔진 생성을 위해 사용할 메모리 공간 설정
+	config->setMaxWorkspaceSize(1ULL << 26); // 64MB, 엔진 생성을 위해 사용할 메모리 공간 설정
 
 	std::cout << "Building engine, please wait for a while..." << std::endl;
 	IHostMemory* engine0 = builder->buildSerializedNetwork(*network, *config); // 엔진 생성(빌드)
@@ -86,6 +86,7 @@ void main()
 	config->destroy();
 	engine0->destroy();
 	network->destroy();
+	p.close();
 	//==========================================================================================
 
 	std::cout << "===== Engine file deserialize =====" << std::endl << std::endl;

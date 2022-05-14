@@ -106,7 +106,7 @@ void createEngine( unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig*
 
 	// Build engine
 	builder->setMaxBatchSize(maxBatchSize);
-	config->setMaxWorkspaceSize(1ULL << 29); // 512MB
+	config->setMaxWorkspaceSize(1ULL << 27); // 128MB
 
 	std::cout << "Building engine, please wait for a while..." << std::endl;
 	IHostMemory* engine = builder->buildSerializedNetwork(*network, *config);
@@ -122,6 +122,7 @@ void createEngine( unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig*
 
 	engine->destroy();
 	network->destroy();
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{

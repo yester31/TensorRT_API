@@ -262,6 +262,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
 	engine->destroy();
 	network->destroy();
+	p.close();
 	// Release host memory
 	for (auto& mem : weightMap)
 	{
