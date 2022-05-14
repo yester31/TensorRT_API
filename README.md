@@ -163,75 +163,41 @@
 - Match all results with PyTorch
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 500x500x3 image 
 
-[//]: # (<table border="0"  width="100%">)
-
-[//]: # (	<tbody align="center">)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td></td>)
-
-[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8&#40;PTQ&#41;</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Duration time [ms]</td>)
-
-[//]: # (			<td>3703 ms</td>)
-
-[//]: # (			<td>3071 ms</td>)
-
-[//]: # (			<td>1640 ms </td>)
-
-[//]: # (			<td>607 ms</td>)
-
-[//]: # (			<td>530 ms</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>FPS [f/s]</td>)
-
-[//]: # (			<td>27 fps</td>)
-
-[//]: # (			<td>33 fps</td>)
-
-[//]: # (			<td>61 fps</td>)
-
-[//]: # (			<td>165 fps</td>)
-
-[//]: # (			<td>189 fps</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Memory [GB]</td>)
-
-[//]: # (			<td>1.563 GB</td>)
-
-[//]: # (			<td>1.511 GB</td>)
-
-[//]: # (			<td>1.212 GB</td>)
-
-[//]: # (			<td>1.091 GB</td>)
-
-[//]: # (			<td>1.005 GB</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (	</tbody>)
-
-[//]: # (</table>)
+<table border="0"  width="100%">
+	<tbody align="center">
+		<tr>
+			<td></td>
+			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>
+		</tr>
+		<tr>
+			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td><td>Int8(PTQ)</td>
+		</tr>
+		<tr>
+			<td>Duration time [ms]</td>
+			<td>37.03 ms</td>
+			<td>30.71 ms</td>
+			<td>16.40 ms </td>
+			<td>6.07 ms</td>
+			<td>5.30 ms</td>
+		</tr>
+		<tr>
+			<td>FPS [f/s]</td>
+			<td>27 fps</td>
+			<td>33 fps</td>
+			<td>61 fps</td>
+			<td>165 fps</td>
+			<td>189 fps</td>
+		</tr>
+		<tr>
+			<td>Memory [GB]</td>
+			<td>1.563 GB</td>
+			<td>1.511 GB</td>
+			<td>1.212 GB</td>
+			<td>1.091 GB</td>
+			<td>1.005 GB</td>
+		</tr>
+	</tbody>
+</table>
 
 ***
 
@@ -240,63 +206,35 @@
 - Yolov5s model (yolov5s.cpp) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage for one 640x640x3 image resized & padded
 
-[//]: # (<table border="0"  width="100%">)
-
-[//]: # (	<tbody align="center">)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td></td>)
-
-[//]: # (			<td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Precision</td><td>FP32</td><td>FP32</td><td>Int8&#40;PTQ&#41;</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Duration time [ms]</td>)
-
-[//]: # (			<td>772 ms</td>)
-
-[//]: # (			<td>616 ms </td>)
-
-[//]: # (			<td>286 ms</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>FPS [f/s]</td>)
-
-[//]: # (			<td>129 fps</td>)
-
-[//]: # (			<td>162 fps</td>)
-
-[//]: # (			<td>350 fps</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Memory [GB]</td>)
-
-[//]: # (			<td>1.670 GB</td>)
-
-[//]: # (			<td>1.359 GB</td>)
-
-[//]: # (			<td>0.920 GB</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (	</tbody>)
-
-[//]: # (</table>)
+<table border="0"  width="100%">
+	<tbody align="center">
+		<tr>
+			<td></td>
+			<td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>
+		</tr>
+		<tr>
+			<td>Precision</td><td>FP32</td><td>FP32</td><td>Int8(PTQ)</td>
+		</tr>
+		<tr>
+			<td>Duration time [ms]</td>
+			<td>7.72 ms</td>
+			<td>6.16 ms </td>
+			<td>2.86 ms</td>
+		</tr>
+		<tr>
+			<td>FPS [f/s]</td>
+			<td>129 fps</td>
+			<td>162 fps</td>
+			<td>350 fps</td>
+		</tr>
+		<tr>
+			<td>Memory [GB]</td>
+			<td>1.670 GB</td>
+			<td>1.359 GB</td>
+			<td>0.920 GB</td>
+		</tr>
+	</tbody>
+</table>
 
 ***
 
@@ -306,69 +244,38 @@
 - Scale up 4x (448x640x3 -> 1792x2560x3) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage
 
-[//]: # (<table border="0"  width="100%">)
-
-[//]: # (	<tbody align="center">)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td></td>)
-
-[//]: # (			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Duration time [ms]</td>)
-
-[//]: # (			<td>4109 ms</td>)
-
-[//]: # (			<td>1936 ms</td>)
-
-[//]: # (			<td>2139 ms </td>)
-
-[//]: # (			<td>737 ms</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>FPS [f/s]</td>)
-
-[//]: # (			<td>0.24 fps</td>)
-
-[//]: # (			<td>0.52 fps</td>)
-
-[//]: # (			<td>0.47 fps</td>)
-
-[//]: # (			<td>1.35 fps</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (		<tr>)
-
-[//]: # (			<td>Memory [GB]</td>)
-
-[//]: # (			<td>5.029 GB</td>)
-
-[//]: # (			<td>4.407 GB</td>)
-
-[//]: # (			<td>3.807 GB</td>)
-
-[//]: # (			<td>3.311 GB</td>)
-
-[//]: # (		</tr>)
-
-[//]: # (	</tbody>)
-
-[//]: # (</table>)
+<table border="0"  width="100%">
+	<tbody align="center">
+		<tr>
+			<td></td>
+			<td><strong>Pytorch</strong></td><td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td><td><strong>TensorRT</strong></td>
+		</tr>
+		<tr>
+			<td>Precision</td><td>FP32</td><td>FP16</td><td>FP32</td><td>FP16</td>
+		</tr>
+		<tr>
+			<td>Duration time [ms]</td>
+			<td>4109 ms</td>
+			<td>1936 ms</td>
+			<td>2139 ms </td>
+			<td>737 ms</td>
+		</tr>
+		<tr>
+			<td>FPS [f/s]</td>
+			<td>0.24 fps</td>
+			<td>0.52 fps</td>
+			<td>0.47 fps</td>
+			<td>1.35 fps</td>
+		</tr>
+		<tr>
+			<td>Memory [GB]</td>
+			<td>5.029 GB</td>
+			<td>4.407 GB</td>
+			<td>3.807 GB</td>
+			<td>3.311 GB</td>
+		</tr>
+	</tbody>
+</table>
 
 ***
  

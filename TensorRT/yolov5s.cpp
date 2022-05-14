@@ -400,24 +400,6 @@ int main()
 	//tofile(outputs);
 	//std::exit(0);
 
-	if (true) {
-		std::vector<std::vector<Detection>> batch_res(maxBatchSize);
-		for (int b = 0; b < maxBatchSize; b++) {
-			auto& res = batch_res[b];
-			nms(res, &outputs[b * OUTPUT_SIZE]);
-		}
-		for (int b = 0; b < maxBatchSize; b++) {
-			auto& res = batch_res[b];
-			cv::Mat img = cv::imread(file_names[b]);
-			for (size_t j = 0; j < res.size(); j++) {
-				cv::Rect r = get_rect(img, res[j].bbox);
-				cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
-				cv::putText(img, COCO_names2[(int)res[j].class_id], cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
-			}
-			cv::imshow(engineFileName, img);
-			cv::waitKey(0);
-		}
-	}
 
 	// 5) Inference ผ๖วเ  
 	for (int i = 0; i < iter_count; i++) {
@@ -442,6 +424,25 @@ int main()
 	std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
 	std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
 	std::cout << "==================================================" << std::endl;
+
+	if (true) {
+		std::vector<std::vector<Detection>> batch_res(maxBatchSize);
+		for (int b = 0; b < maxBatchSize; b++) {
+			auto& res = batch_res[b];
+			nms(res, &outputs[b * OUTPUT_SIZE]);
+		}
+		for (int b = 0; b < maxBatchSize; b++) {
+			auto& res = batch_res[b];
+			cv::Mat img = cv::imread(file_names[b]);
+			for (size_t j = 0; j < res.size(); j++) {
+				cv::Rect r = get_rect(img, res[j].bbox);
+				cv::rectangle(img, r, cv::Scalar(0x27, 0xC1, 0x36), 2);
+				cv::putText(img, COCO_names2[(int)res[j].class_id], cv::Point(r.x, r.y - 1), cv::FONT_HERSHEY_PLAIN, 1.2, cv::Scalar(0xFF, 0xFF, 0xFF), 2);
+			}
+			cv::imshow(engineFileName, img);
+			cv::waitKey(0);
+		}
+	}
 
 	// Release stream and buffers ...
 	cudaStreamDestroy(stream);

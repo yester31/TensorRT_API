@@ -12,7 +12,7 @@ static const int INPUT_W = 448;
 static const int INPUT_C = 3;
 static const int OUT_SCALE = 4;
 static const int OUTPUT_SIZE = INPUT_C * INPUT_H * OUT_SCALE * INPUT_W * OUT_SCALE ;
-static const int precision_mode = 16; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
