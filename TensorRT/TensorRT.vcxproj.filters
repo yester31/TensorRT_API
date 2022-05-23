@@ -17,6 +17,7 @@
     <ClCompile Include="yolov5s.cpp" />
     <ClCompile Include="real-esrgan.cpp" />
     <ClCompile Include="resnet18.cpp" />
+    <ClCompile Include="TPS_Motion_Estimation.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">

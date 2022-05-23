@@ -1,0 +1,156 @@
+key:  first.conv.weight
+value:  torch.Size([64, 3, 7, 7])
+key:  first.conv.bias
+value:  torch.Size([64])
+key:  first.norm.weight
+value:  torch.Size([64])
+key:  first.norm.bias
+value:  torch.Size([64])
+key:  down_blocks.0.conv.weight
+value:  torch.Size([128, 64, 3, 3])
+key:  down_blocks.0.conv.bias
+value:  torch.Size([128])
+key:  down_blocks.0.norm.weight
+value:  torch.Size([128])
+key:  down_blocks.0.norm.bias
+value:  torch.Size([128])
+key:  down_blocks.1.conv.weight
+value:  torch.Size([256, 128, 3, 3])
+key:  down_blocks.1.conv.bias
+value:  torch.Size([256])
+key:  down_blocks.1.norm.weight
+value:  torch.Size([256])
+key:  down_blocks.1.norm.bias
+value:  torch.Size([256])
+key:  down_blocks.2.conv.weight
+value:  torch.Size([512, 256, 3, 3])
+key:  down_blocks.2.conv.bias
+value:  torch.Size([512])
+key:  down_blocks.2.norm.weight
+value:  torch.Size([512])
+key:  down_blocks.2.norm.bias
+value:  torch.Size([512])
+key:  up_blocks.0.conv.weight
+value:  torch.Size([256, 512, 3, 3])
+key:  up_blocks.0.conv.bias
+value:  torch.Size([256])
+key:  up_blocks.0.norm.weight
+value:  torch.Size([256])
+key:  up_blocks.0.norm.bias
+value:  torch.Size([256])
+key:  up_blocks.1.conv.weight
+value:  torch.Size([128, 512, 3, 3])
+key:  up_blocks.1.conv.bias
+value:  torch.Size([128])
+key:  up_blocks.1.norm.weight
+value:  torch.Size([128])
+key:  up_blocks.1.norm.bias
+value:  torch.Size([128])
+key:  up_blocks.2.conv.weight
+value:  torch.Size([64, 256, 3, 3])
+key:  up_blocks.2.conv.bias
+value:  torch.Size([64])
+key:  up_blocks.2.norm.weight
+value:  torch.Size([64])
+key:  up_blocks.2.norm.bias
+value:  torch.Size([64])
+key:  resblock.0.conv1.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.0.conv1.bias
+value:  torch.Size([512])
+key:  resblock.0.conv2.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.0.conv2.bias
+value:  torch.Size([512])
+key:  resblock.0.norm1.weight
+value:  torch.Size([512])
+key:  resblock.0.norm1.bias
+value:  torch.Size([512])
+key:  resblock.0.norm2.weight
+value:  torch.Size([512])
+key:  resblock.0.norm2.bias
+value:  torch.Size([512])
+key:  resblock.1.conv1.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.1.conv1.bias
+value:  torch.Size([512])
+key:  resblock.1.conv2.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.1.conv2.bias
+value:  torch.Size([512])
+key:  resblock.1.norm1.weight
+value:  torch.Size([512])
+key:  resblock.1.norm1.bias
+value:  torch.Size([512])
+key:  resblock.1.norm2.weight
+value:  torch.Size([512])
+key:  resblock.1.norm2.bias
+value:  torch.Size([512])
+key:  resblock.2.conv1.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.2.conv1.bias
+value:  torch.Size([512])
+key:  resblock.2.conv2.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.2.conv2.bias
+value:  torch.Size([512])
+key:  resblock.2.norm1.weight
+value:  torch.Size([512])
+key:  resblock.2.norm1.bias
+value:  torch.Size([512])
+key:  resblock.2.norm2.weight
+value:  torch.Size([512])
+key:  resblock.2.norm2.bias
+value:  torch.Size([512])
+key:  resblock.3.conv1.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.3.conv1.bias
+value:  torch.Size([512])
+key:  resblock.3.conv2.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  resblock.3.conv2.bias
+value:  torch.Size([512])
+key:  resblock.3.norm1.weight
+value:  torch.Size([512])
+key:  resblock.3.norm1.bias
+value:  torch.Size([512])
+key:  resblock.3.norm2.weight
+value:  torch.Size([512])
+key:  resblock.3.norm2.bias
+value:  torch.Size([512])
+key:  resblock.4.conv1.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  resblock.4.conv1.bias
+value:  torch.Size([256])
+key:  resblock.4.conv2.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  resblock.4.conv2.bias
+value:  torch.Size([256])
+key:  resblock.4.norm1.weight
+value:  torch.Size([256])
+key:  resblock.4.norm1.bias
+value:  torch.Size([256])
+key:  resblock.4.norm2.weight
+value:  torch.Size([256])
+key:  resblock.4.norm2.bias
+value:  torch.Size([256])
+key:  resblock.5.conv1.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  resblock.5.conv1.bias
+value:  torch.Size([256])
+key:  resblock.5.conv2.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  resblock.5.conv2.bias
+value:  torch.Size([256])
+key:  resblock.5.norm1.weight
+value:  torch.Size([256])
+key:  resblock.5.norm1.bias
+value:  torch.Size([256])
+key:  resblock.5.norm2.weight
+value:  torch.Size([256])
+key:  resblock.5.norm2.bias
+value:  torch.Size([256])
+key:  final.weight
+value:  torch.Size([3, 64, 7, 7])
+key:  final.bias
+value:  torch.Size([3])

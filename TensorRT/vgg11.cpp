@@ -192,7 +192,7 @@ int main()
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float)));
 
 	// 4) 입력으로 사용할 이미지 준비하기
-	std::string img_dir = "../TestDate/";
+	std::string img_dir = "../VGG11_py/data/";
 	std::vector<std::string> file_names;
 	if (SearchFile(img_dir.c_str(), file_names) < 0) { // 이미지 파일 찾기
 		std::cerr << "[ERROR] Data search error" << std::endl;

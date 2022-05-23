@@ -3,18 +3,17 @@ import cv2
 import glob
 import os
 import time
+import struct
 from basicsr.archs.rrdbnet_arch import RRDBNet
-
 from realesrgan import RealESRGANer
 from realesrgan.archs.srvgg_arch import SRVGGNetCompact
-
 
 def main():
     """Inference demo for Real-ESRGAN.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--input', type=str, default='../TestData3', help='Input image or folder')
-    #parser.add_argument('-i', '--input', type=str, default='inputs', help='Input image or folder')
+    #parser.add_argument('-i', '--input', type=str, default='../TestData3', help='Input image or folder')
+    parser.add_argument('-i', '--input', type=str, default='inputs', help='Input image or folder')
     parser.add_argument(
         '-n',
         '--model_name',
@@ -75,6 +74,23 @@ def main():
         pre_pad=args.pre_pad,
         half= args.fp32)
         #half=not args.fp32)
+
+    if os.path.isfile('real-esrgan.wts'):
+        print('Already, real-esrgan.wts file exists.')
+    else:
+        print('making real-esrgan.wts file ...')  # vgg.wts 파일이 없다면 생성
+        f = open("real-esrgan.wts", 'w')
+        f.write("{}\n".format(len(upsampler.model.state_dict().keys())))
+        for k, v in upsampler.model.state_dict().items():
+            print('key: ', k)
+            print('value: ', v.shape)
+            vr = v.reshape(-1).cpu().numpy()
+            f.write("{} {}".format(k, len(vr)))
+            for vv in vr:
+                f.write(" ")
+                f.write(struct.pack(">f", float(vv)).hex())
+            f.write("\n")
+        print('Completed real-esrgan.wts file!')
 
     if args.face_enhance:  # Use GFPGAN for face enhancement
         from gfpgan import GFPGANer

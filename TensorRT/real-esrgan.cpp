@@ -205,7 +205,7 @@ int main()
 	CHECK(cudaMalloc(&buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(uint8_t)));
 
 	// 4) Prepare image data for inputs
-	std::string img_dir = "../TestData3/";
+	std::string img_dir = "../Real-ESRGAN_py/data/";
 	std::vector<std::string> file_names;
 	if (SearchFile(img_dir.c_str(), file_names) < 0) { // search files
 		std::cerr << "[ERROR] Data search error" << std::endl;

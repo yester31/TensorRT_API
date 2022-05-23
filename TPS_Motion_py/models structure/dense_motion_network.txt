@@ -1,0 +1,75 @@
+DenseMotionNetwork(
+  (down): AntiAliasInterpolation2d()
+  (hourglass): Hourglass(
+    (encoder): Encoder(
+      (down_blocks): ModuleList(
+        (0): DownBlock2d(
+          (conv): Conv2d(84, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+          (pool): AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0)
+        )
+        (1): DownBlock2d(
+          (conv): Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+          (pool): AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0)
+        )
+        (2): DownBlock2d(
+          (conv): Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+          (pool): AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0)
+        )
+        (3): DownBlock2d(
+          (conv): Conv2d(512, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+          (pool): AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0)
+        )
+        (4): DownBlock2d(
+          (conv): Conv2d(1024, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+          (pool): AvgPool2d(kernel_size=(2, 2), stride=(2, 2), padding=0)
+        )
+      )
+    )
+    (decoder): Decoder(
+      (up_blocks): ModuleList(
+        (0): UpBlock2d(
+          (conv): Conv2d(1024, 1024, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+        )
+        (1): UpBlock2d(
+          (conv): Conv2d(2048, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+        )
+        (2): UpBlock2d(
+          (conv): Conv2d(1024, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+        )
+        (3): UpBlock2d(
+          (conv): Conv2d(512, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+        )
+        (4): UpBlock2d(
+          (conv): Conv2d(256, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (norm): InstanceNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+        )
+      )
+    )
+  )
+  (maps): Conv2d(148, 11, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3))
+  (up): ModuleList(
+    (0): UpBlock2d(
+      (conv): Conv2d(148, 74, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      (norm): InstanceNorm2d(74, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+    )
+    (1): UpBlock2d(
+      (conv): Conv2d(74, 37, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+      (norm): InstanceNorm2d(37, eps=1e-05, momentum=0.1, affine=True, track_running_stats=False)
+    )
+  )
+  (occlusion): ModuleList(
+    (0): Conv2d(256, 1, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3))
+    (1): Conv2d(148, 1, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3))
+    (2): Conv2d(74, 1, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3))
+    (3): Conv2d(37, 1, kernel_size=(7, 7), stride=(1, 1), padding=(3, 3))
+  )
+)

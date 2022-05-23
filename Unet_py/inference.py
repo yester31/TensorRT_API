@@ -50,7 +50,7 @@ def main():
         net.half()  # to FP16
     net = net.eval()
     #summary(net, (3, size, size))
-    img = cv2.imread('00ad56bf7ee6_03.jpg')  # image file load
+    img = cv2.imread('data/00ad56bf7ee6_03.jpg')  # image file load
     #img = cv2.imread('car0.jpg')  # image file load
     #tofile(img, "../Validation_py/py_pre")
     if 1 : # 원본 비율 크기 그대로 리사이즈 및 정사각형 입력 사이즈를 위해 여백 추가

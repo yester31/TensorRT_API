@@ -17,7 +17,7 @@ def main():
     net = net.to('cuda:0')
     #print(net)
 
-    img = cv2.imread("../TestDate/panda0.jpg")
+    img = cv2.imread("./data/panda0.jpg")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = img.transpose(2, 0, 1)
     img = img.astype(np.float32)

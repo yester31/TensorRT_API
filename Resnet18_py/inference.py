@@ -65,7 +65,7 @@ def main():
     #print('model: ', net)                       # 모델 구조 출력
     #summary(net, (3, 224, 224))                 # input 사이즈 기준 레이어 별 output shape 및 파라미터 사이즈 출력
 
-    img = cv2.imread('../TestDate/panda0.jpg')  # image file load
+    img = cv2.imread('./data/panda0.jpg')  # image file load
     dur_time = 0
     iteration = 1000
 
