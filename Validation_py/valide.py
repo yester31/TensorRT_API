@@ -17,7 +17,7 @@ if 1:
 
 
     output_py = np.fromfile("p", dtype=np.float32)
-    compare_two_tensor(output_py, output_c)
+    compare_two_tensor2(output_py, output_c)
 else:
     output_c = np.fromfile("trt_1", dtype=np.int8)
     output_py = np.fromfile("py_0", dtype=np.int8)
