@@ -103,8 +103,8 @@ namespace nvinfer1
                 preprocess_cu_1(output, input, batchSize, H, W, C, mean_std, stream);
                 break;
             case 3: // yolov6
-                void preprocess_cu_3(float* output, unsigned char* input, int batchSize, int P, int Q, int P0, int Q0, int H, int W, int align_corner, int pl, int pr, int pt, int pb, cudaStream_t stream);
-                preprocess_cu_3(output, input, batchSize, P, Q, P0, Q0, H, W, 0, pl, pr, pt, pb, stream);
+                void preprocess_cu_3(float* output, unsigned char* input, int batchSize, int P, int Q, int P0, int Q0, int H, int W, int pt, int pb, int pl, int pr, cudaStream_t stream);
+                preprocess_cu_3(output, input, batchSize, P, Q, P0, Q0, H, W, pt, pb, pl, pr, stream);
                 break;
             default:
                 std::cout << "Unknown";

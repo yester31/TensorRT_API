@@ -15,74 +15,42 @@ static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
 
-static ITensor* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps) {
-    float *gamma = (float*)weightMap[lname + ".weight"].values;
-    float *beta = (float*)weightMap[lname + ".bias"].values;
-    float *mean = (float*)weightMap[lname + ".running_mean"].values;
-    float *var = (float*)weightMap[lname + ".running_var"].values;
-    int len = weightMap[lname + ".running_var"].count;
+static ITensor* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps);
+static ITensor* addRepVGGBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* input, int outch, std::string lname, bool rbr_identity);
 
-    float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-    for (int i = 0; i < len; i++) {
-        scval[i] = gamma[i] / sqrt(var[i] + eps);
-    }
-    Weights scale{ DataType::kFLOAT, scval, len };
+static ITensor* addSimSPPF(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* input, std::string lname)
+{
+    Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
-    float *shval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-    for (int i = 0; i < len; i++) {
-        shval[i] = beta[i] - mean[i] * gamma[i] / sqrt(var[i] + eps);
-    }
-    Weights shift{ DataType::kFLOAT, shval, len };
+    //cv1
+    IConvolutionLayer* conv1 = network->addConvolutionNd(*input, 256, DimsHW{ 1, 1 }, weightMap[lname + "cv1.conv.weight"], emptywts);
+    conv1->setStrideNd(DimsHW{ 1, 1 });
 
-    float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
-    for (int i = 0; i < len; i++) {
-        pval[i] = 1.0;
-    }
-    Weights power{ DataType::kFLOAT, pval, len };
+    ITensor* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + "cv1.bn", 1e-3);
+    auto* nonlinearity0 = network->addActivation(*bn1, ActivationType::kRELU);
 
-    weightMap[lname + ".scale"] = scale;
-    weightMap[lname + ".shift"] = shift;
-    weightMap[lname + ".power"] = power;
-    IScaleLayer* scale_1 = network->addScale(input, ScaleMode::kCHANNEL, shift, scale, power);
-    assert(scale_1);
-    return scale_1->getOutput(0);
+    auto pool1 = network->addPoolingNd(*nonlinearity0->getOutput(0), PoolingType::kMAX, DimsHW{ 5, 5 });
+    pool1->setPaddingNd(DimsHW{ 2, 2 });
+    pool1->setStrideNd(DimsHW{ 1, 1 });
+
+    auto pool2 = network->addPoolingNd(*pool1->getOutput(0), PoolingType::kMAX, DimsHW{ 5, 5 });
+    pool2->setPaddingNd(DimsHW{ 2, 2 });
+    pool2->setStrideNd(DimsHW{ 1, 1 });
+
+    auto pool3 = network->addPoolingNd(*pool2->getOutput(0), PoolingType::kMAX, DimsHW{ 5, 5 });
+    pool3->setPaddingNd(DimsHW{ 2, 2 });
+    pool3->setStrideNd(DimsHW{ 1, 1 });
+
+    ITensor* inputs4[] = { nonlinearity0->getOutput(0), pool1->getOutput(0), pool2->getOutput(0), pool3->getOutput(0) };
+    auto cat12 = network->addConcatenation(inputs4, 4);
+
+    //cv2
+    IConvolutionLayer* conv2 = network->addConvolutionNd(*cat12->getOutput(0), 512, DimsHW{ 1, 1 }, weightMap[lname + "cv2.conv.weight"], emptywts);
+    conv2->setStrideNd(DimsHW{ 1, 1 });
+    ITensor* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + "cv2.bn", 1e-3);
+    auto* nonlinearity1 = network->addActivation(*bn2, ActivationType::kRELU);
+    return nonlinearity1->getOutput(0);
 }
-
-//IActivationLayer* basicBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, int inch, int outch, int stride, std::string lname) {
-//    Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
-//
-//    IConvolutionLayer* conv1 = network->addConvolutionNd(input, outch, DimsHW{ 3, 3 }, weightMap[lname + "conv1.weight"], emptywts);
-//    assert(conv1);
-//    conv1->setStrideNd(DimsHW{ stride, stride });
-//    conv1->setPaddingNd(DimsHW{ 1, 1 });
-//
-//    IScaleLayer* bn1 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + "bn1", 1e-5);
-//
-//    IActivationLayer* relu1 = network->addActivation(*bn1->getOutput(0), ActivationType::kRELU);
-//    assert(relu1);
-//
-//    IConvolutionLayer* conv2 = network->addConvolutionNd(*relu1->getOutput(0), outch, DimsHW{ 3, 3 }, weightMap[lname + "conv2.weight"], emptywts);
-//    assert(conv2);
-//    conv2->setPaddingNd(DimsHW{ 1, 1 });
-//
-//    IScaleLayer* bn2 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + "bn2", 1e-5);
-//
-//    IElementWiseLayer* ew1;
-//    if (inch != outch) {
-//        IConvolutionLayer* conv3 = network->addConvolutionNd(input, outch, DimsHW{ 1, 1 }, weightMap[lname + "downsample.0.weight"], emptywts);
-//        assert(conv3);
-//        conv3->setStrideNd(DimsHW{ stride, stride });
-//        IScaleLayer* bn3 = addBatchNorm2d(network, weightMap, *conv3->getOutput(0), lname + "downsample.1", 1e-5);
-//        ew1 = network->addElementWise(*bn3->getOutput(0), *bn2->getOutput(0), ElementWiseOperation::kSUM);
-//    }
-//    else {
-//        ew1 = network->addElementWise(input, *bn2->getOutput(0), ElementWiseOperation::kSUM);
-//    }
-//    IActivationLayer* relu2 = network->addActivation(*ew1->getOutput(0), ActivationType::kRELU);
-//    assert(relu2);
-//    return relu2;
-//}
-
 
 
 // Creat the engine using only the API and not any parser.
@@ -129,28 +97,41 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     preprocess_layer->setName("preprocess_layer");
     ITensor* prep = preprocess_layer->getOutput(0);
 
+    // backbone
     // stem
+    ITensor* stem = addRepVGGBlock(network, weightMap, prep, 32, "backbone.stem.", false);
+    // ERBlock_2
+    ITensor* ERBlock_2_0 = addRepVGGBlock(network, weightMap, stem, 64, "backbone.ERBlock_2.0.", false);
+    ITensor* ERBlock_2_1 = addRepVGGBlock(network, weightMap, ERBlock_2_0, 64, "backbone.ERBlock_2.1.conv1.", true);
+    ITensor* ERBlock_2_2 = addRepVGGBlock(network, weightMap, ERBlock_2_1, 64, "backbone.ERBlock_2.1.block.0.", true);
+    // ERBlock_3
+    ITensor* ERBlock_3_0 = addRepVGGBlock(network, weightMap, ERBlock_2_2, 128, "backbone.ERBlock_3.0.", false);
+    ITensor* ERBlock_3_1 = addRepVGGBlock(network, weightMap, ERBlock_3_0, 128, "backbone.ERBlock_3.1.conv1.", true);
+    ITensor* ERBlock_3_2 = addRepVGGBlock(network, weightMap, ERBlock_3_1, 128, "backbone.ERBlock_3.1.block.0.", true);
+    ITensor* ERBlock_3_3 = addRepVGGBlock(network, weightMap, ERBlock_3_2, 128, "backbone.ERBlock_3.1.block.1.", true);
+    ITensor* ERBlock_3_4 = addRepVGGBlock(network, weightMap, ERBlock_3_3, 128, "backbone.ERBlock_3.1.block.2.", true);
+    // ERBlock_4
+    ITensor* ERBlock_4_0 = addRepVGGBlock(network, weightMap, ERBlock_3_4, 256, "backbone.ERBlock_4.0.", false);
+    ITensor* ERBlock_4_1 = addRepVGGBlock(network, weightMap, ERBlock_4_0, 256, "backbone.ERBlock_4.1.conv1.", true);
+    ITensor* ERBlock_4_2 = addRepVGGBlock(network, weightMap, ERBlock_4_1, 256, "backbone.ERBlock_4.1.block.0.", true);
+    ITensor* ERBlock_4_3 = addRepVGGBlock(network, weightMap, ERBlock_4_2, 256, "backbone.ERBlock_4.1.block.1.", true);
+    ITensor* ERBlock_4_4 = addRepVGGBlock(network, weightMap, ERBlock_4_3, 256, "backbone.ERBlock_4.1.block.2.", true);
+    ITensor* ERBlock_4_5 = addRepVGGBlock(network, weightMap, ERBlock_4_4, 256, "backbone.ERBlock_4.1.block.3.", true);
+    ITensor* ERBlock_4_6 = addRepVGGBlock(network, weightMap, ERBlock_4_5, 256, "backbone.ERBlock_4.1.block.4.", true);
+    // ERBlock_5
+    ITensor* ERBlock_5_0 = addRepVGGBlock(network, weightMap, ERBlock_4_6, 512, "backbone.ERBlock_5.0.", false);
+    ITensor* ERBlock_5_1 = addRepVGGBlock(network, weightMap, ERBlock_5_0, 512, "backbone.ERBlock_5.1.conv1.", true);
+    ITensor* ERBlock_5_2 = addRepVGGBlock(network, weightMap, ERBlock_5_1, 512, "backbone.ERBlock_5.1.block.0.", true);
+    ITensor* ERBlock_5_3 = addSimSPPF(network, weightMap, ERBlock_5_2, "backbone.ERBlock_5.2.");
+    // backbone
 
-    std::string lname_stem = "backbone.stem.rbr_dense.";
-    auto* conv1 = network->addConvolutionNd(*prep, 32, DimsHW{ 3, 3 }, weightMap[lname_stem + "conv.weight"], emptywts);
-    conv1->setStrideNd(DimsHW{ 2, 2 });
-    conv1->setPaddingNd(DimsHW{ 1, 1 });
-    ITensor* stem0 = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname_stem + "bn", 1e-3);
+    // neck
+    // neck
 
-    std::string lname_stem2 = "backbone.stem.rbr_1x1.";
-    auto* conv2 = network->addConvolutionNd(*prep, 32, DimsHW{ 1, 1 }, weightMap[lname_stem2 + "conv.weight"], emptywts);
-    conv2->setStrideNd(DimsHW{ 2, 2 });
-    ITensor* stem1 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname_stem2 + "bn", 1e-3);
+    // detect
+    // detect
 
-    auto ew1 = network->addElementWise(*stem0, *stem1, ElementWiseOperation::kSUM);
-
-    auto* relu0 = network->addActivation(*ew1->getOutput(0), ActivationType::kRELU);
-    
-    // stem
-
-    ITensor* final_tensor = relu0->getOutput(0);
-    //ITensor* final_tensor = conv1->getOutput(0);
-    //ITensor* final_tensor = prep;
+    ITensor* final_tensor = ERBlock_5_3;
     show_dims(final_tensor);
     final_tensor->setName(OUTPUT_BLOB_NAME);
     network->markOutput(*final_tensor);
@@ -244,7 +225,11 @@ int main()
     const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
 
     // Allocating memory space for inputs and outputs on the GPU
-    int OUTPUT_SIZE = 1 * 32 * 272 * 320;
+    int OUTPUT_SIZE = 1 * 512 * 17 * 20;
+    //int OUTPUT_SIZE = 1 * 256 * 34 * 40;
+    //int OUTPUT_SIZE = 1 * 128 * 68 * 80;
+    //int OUTPUT_SIZE = 1 * 64 * 136 * 160;
+    //int OUTPUT_SIZE = 1 * 32 * 272 * 320;
     //int OUTPUT_SIZE = 1 * 3 * 544 * 640;
     std::vector<float> outputs(OUTPUT_SIZE);
     CHECK(cudaMalloc(&buffers[inputIndex], maxBatchSize * INPUT_C * INPUT_H * INPUT_W * sizeof(uint8_t)));
@@ -321,4 +306,81 @@ int main()
     engine->destroy();
     runtime->destroy();
     return 0;
+}
+
+
+static ITensor* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps) {
+    float *gamma = (float*)weightMap[lname + ".weight"].values;
+    float *beta = (float*)weightMap[lname + ".bias"].values;
+    float *mean = (float*)weightMap[lname + ".running_mean"].values;
+    float *var = (float*)weightMap[lname + ".running_var"].values;
+    int len = weightMap[lname + ".running_var"].count;
+
+    float *scval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+    for (int i = 0; i < len; i++) {
+        scval[i] = gamma[i] / sqrt(var[i] + eps);
+    }
+    Weights scale{ DataType::kFLOAT, scval, len };
+
+    float *shval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+    for (int i = 0; i < len; i++) {
+        shval[i] = beta[i] - mean[i] * gamma[i] / sqrt(var[i] + eps);
+    }
+    Weights shift{ DataType::kFLOAT, shval, len };
+
+    float *pval = reinterpret_cast<float*>(malloc(sizeof(float) * len));
+    for (int i = 0; i < len; i++) {
+        pval[i] = 1.0;
+    }
+    Weights power{ DataType::kFLOAT, pval, len };
+
+    weightMap[lname + ".scale"] = scale;
+    weightMap[lname + ".shift"] = shift;
+    weightMap[lname + ".power"] = power;
+    IScaleLayer* scale_1 = network->addScale(input, ScaleMode::kCHANNEL, shift, scale, power);
+    assert(scale_1);
+    return scale_1->getOutput(0);
+}
+
+static ITensor* addRepVGGBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* input, int outch, std::string lname, bool rbr_identity)
+{
+    Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
+
+    ITensor* id_out;
+    if (rbr_identity)
+        id_out = addBatchNorm2d(network, weightMap, *input, lname + "rbr_identity", 1e-3);
+
+    //rbr_dense
+    IConvolutionLayer* conv1;
+    if (rbr_identity) {
+        conv1 = network->addConvolutionNd(*input, outch, DimsHW{ 3, 3 }, weightMap[lname + "rbr_dense.conv.weight"], emptywts);
+        conv1->setStrideNd(DimsHW{ 1, 1 });
+        conv1->setPaddingNd(DimsHW{ 1, 1 });
+    }
+    else {
+        conv1 = network->addConvolutionNd(*input, outch, DimsHW{ 3, 3 }, weightMap[lname + "rbr_dense.conv.weight"], emptywts);
+        conv1->setStrideNd(DimsHW{ 2, 2 });
+        conv1->setPaddingNd(DimsHW{ 1, 1 });
+    }
+    ITensor* rbr_dense = addBatchNorm2d(network, weightMap, *conv1->getOutput(0), lname + "rbr_dense.bn", 1e-3);
+
+    //rbr_1x1
+    IConvolutionLayer* conv2;
+    if (rbr_identity) {
+        conv2 = network->addConvolutionNd(*input, outch, DimsHW{ 1, 1 }, weightMap[lname + "rbr_1x1.conv.weight"], emptywts);
+        conv2->setStrideNd(DimsHW{ 1, 1 });
+    }
+    else {
+        conv2 = network->addConvolutionNd(*input, outch, DimsHW{ 1, 1 }, weightMap[lname + "rbr_1x1.conv.weight"], emptywts);
+        conv2->setStrideNd(DimsHW{ 2, 2 });
+    }
+    ITensor* rbr_1x1 = addBatchNorm2d(network, weightMap, *conv2->getOutput(0), lname + "rbr_1x1.bn", 1e-3);
+
+    IElementWiseLayer* elt_sum0 = network->addElementWise(*rbr_dense, *rbr_1x1, ElementWiseOperation::kSUM);
+
+    if (rbr_identity)
+        elt_sum0 = network->addElementWise(*elt_sum0->getOutput(0), *id_out, ElementWiseOperation::kSUM);
+
+    auto* nonlinearity = network->addActivation(*elt_sum0->getOutput(0), ActivationType::kRELU);
+    return nonlinearity->getOutput(0);
 }
