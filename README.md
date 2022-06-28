@@ -241,8 +241,9 @@
 </table>
 
 ***
-## Thin Plate Spline Motion Model (on progress)
-- 
+
+## Object Detection model 2 (on progress)
+- Yolov6 model (yolov6.cpp) 
 
 
 ***
