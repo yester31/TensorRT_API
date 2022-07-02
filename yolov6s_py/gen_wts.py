@@ -15,7 +15,7 @@ cuda = device != 'cpu' and torch.cuda.is_available()
 device = torch.device('cuda:0' if cuda else 'cpu')
 
 # Load model
-model = DetectBackend(weights, device=device, fuse=False).model
+model = DetectBackend(weights, device=device, fuse=True).model
 
 if 1:  # LIST 형태 웨이트 파일 생성 로직
     weights = model.state_dict()

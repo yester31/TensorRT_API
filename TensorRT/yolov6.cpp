@@ -161,16 +161,43 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* pan_out0_1 = addRepVGGBlock(network, weightMap, pan_out0, 256, "neck.Rep_n4.block.0.", true);
     ITensor* pan_out0_2 = addRepVGGBlock(network, weightMap, pan_out0_1, 256, "neck.Rep_n4.block.1.", true);
     ITensor* pan_out0_3 = addRepVGGBlock(network, weightMap, pan_out0_2, 256, "neck.Rep_n4.block.2.", true);
-    //outputs = [pan_out2_3, pan_out1_2, pan_out0_2]
-    // neck
     
+    //outputs = [pan_out2_3, pan_out1_3, pan_out0_3]
+    // neck
+    //show_dims(pan_out2_3); // 64 68 80
+    //show_dims(pan_out1_3); // 128, 34, 40
+    //show_dims(pan_out0_3); // 256, 17, 20
     // detect
 
+    IConvolutionLayer* stems0_conv = network->addConvolutionNd(*pan_out2_3, 64, DimsHW{ 1, 1 }, weightMap["detect.stems.0.conv.weight"], weightMap["detect.stems.0.conv.bias"]);
+    stems0_conv->setStrideNd(DimsHW{ 1, 1 });
+    ITensor* stems0 = addSilu(network, stems0_conv->getOutput(0));
 
+    IConvolutionLayer* cls_convs0 = network->addConvolutionNd(*stems0, 64, DimsHW{ 3, 3 }, weightMap["detect.cls_convs.0.conv.weight"], weightMap["detect.cls_convs.0.conv.bias"]);
+    cls_convs0->setStrideNd(DimsHW{ 1, 1 });
+    cls_convs0->setPaddingNd(DimsHW{ 1, 1 });
+    ITensor* cls_feat0 = addSilu(network, cls_convs0->getOutput(0));
+
+    IConvolutionLayer* cls_preds0 = network->addConvolutionNd(*cls_feat0, 80, DimsHW{ 1, 1 }, weightMap["detect.cls_preds.0.weight"], weightMap["detect.cls_preds.0.bias"]);
+    cls_preds0->setStrideNd(DimsHW{ 1, 1 });
+    ITensor* cls_output0 = cls_preds0->getOutput(0);
+
+    IConvolutionLayer* reg_convs0 = network->addConvolutionNd(*stems0, 64, DimsHW{ 3, 3 }, weightMap["detect.reg_convs.0.conv.weight"], weightMap["detect.reg_convs.0.conv.bias"]);
+    reg_convs0->setStrideNd(DimsHW{ 1, 1 });
+    reg_convs0->setPaddingNd(DimsHW{ 1, 1 });
+    ITensor* reg_feat0 = addSilu(network, reg_convs0->getOutput(0));
+
+    IConvolutionLayer* reg_preds0 = network->addConvolutionNd(*reg_feat0, 4, DimsHW{ 1, 1 }, weightMap["detect.reg_preds.0.weight"], weightMap["detect.reg_preds.0.bias"]);
+    reg_preds0->setStrideNd(DimsHW{ 1, 1 });
+    ITensor* reg_output0 = reg_preds0->getOutput(0);
+
+    IConvolutionLayer* obj_preds0 = network->addConvolutionNd(*reg_feat0, 1, DimsHW{ 1, 1 }, weightMap["detect.obj_preds.0.weight"], weightMap["detect.obj_preds.0.bias"]);
+    obj_preds0->setStrideNd(DimsHW{ 1, 1 });
+    ITensor* obj_output0 = obj_preds0->getOutput(0);
 
     // detect
 
-    ITensor* final_tensor = pan_out0_3;
+    ITensor* final_tensor = obj_output0;
     show_dims(final_tensor);
     final_tensor->setName(OUTPUT_BLOB_NAME);
     network->markOutput(*final_tensor);
@@ -264,12 +291,9 @@ int main()
     const int outputIndex = engine->getBindingIndex(OUTPUT_BLOB_NAME);
 
     // Allocating memory space for inputs and outputs on the GPU
-    //int OUTPUT_SIZE = 1 * 64 * 68 * 80;
-    int OUTPUT_SIZE = 1 * 256 * 17 * 20;
+    int OUTPUT_SIZE = 1 * 1 * 68 * 80;
     //int OUTPUT_SIZE = 1 * 128 * 34 * 40;
-    //int OUTPUT_SIZE = 1 * 512 * 17 * 20;
-    //int OUTPUT_SIZE = 1 * 256 * 34 * 40;
-    //int OUTPUT_SIZE = 1 * 128 * 68 * 80;
+    //int OUTPUT_SIZE = 1 * 256 * 17 * 20;
     //int OUTPUT_SIZE = 1 * 64 * 136 * 160;
     //int OUTPUT_SIZE = 1 * 32 * 272 * 320;
     //int OUTPUT_SIZE = 1 * 3 * 544 * 640;
