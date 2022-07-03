@@ -148,7 +148,6 @@ bool Int8EntropyCalibrator2::getBatch(void* bindings[], const char* names[], int
 		}
 		img_idx_ += batchsize_;
 		CHECK(cudaMemcpy(device_input_, input_imgs_.data(), input_count_ * sizeof(uint8_t), cudaMemcpyHostToDevice));
-
 	}
 	else { // 
 		std::cerr << "Fatal error: pre-preprocess type is wrong!" << std::endl;

@@ -57,10 +57,10 @@
     <CudaCompile Include="preprocess.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
-    <CudaCompile Include="yoloayer.cu">
+    <CudaCompile Include="postprocess.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
-    <CudaCompile Include="postprocess.cu">
+    <CudaCompile Include="yololayer.cu">
       <Filter>plugin</Filter>
     </CudaCompile>
   </ItemGroup>
