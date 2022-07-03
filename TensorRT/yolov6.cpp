@@ -15,7 +15,7 @@ static const int CLASS_NUM = 80;
 static const int ANCHORS = 1;
 static const int MAX_OUTPUT_BBOX_COUNT = 100;
 
-static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
@@ -29,6 +29,7 @@ static ITensor* addSimConv2(INetworkDefinition *network, std::map<std::string, W
 static ITensor* addSilu(INetworkDefinition *network, ITensor* input);
 static ITensor *addReahspe(INetworkDefinition *network, std::vector<int> reshape_dims, ITensor *input);
 static ITensor *addRegress(INetworkDefinition *network, ITensor *reg_output0, ITensor *obj_output0, ITensor *cls_output0, int stride);
+static ITensor *addRegress2(INetworkDefinition *network, ITensor *reg_output0, ITensor *obj_output0, ITensor *cls_output0, int stride, int minimum = 100);
 
 // Creat the engine using only the API and not any parser.
 void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* config, DataType dt, char* engineFileName)
@@ -174,7 +175,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* obj_output0 = obj_preds0->getOutput(0);
     obj_output0 = network->addActivation(*obj_output0, ActivationType::kSIGMOID)->getOutput(0);
 
-    ITensor * ny0 = addRegress(network, reg_output0, obj_output0, cls_output0, 8);
+    ITensor * ny0 = addRegress2(network, reg_output0, obj_output0, cls_output0, 8);
     
     // 1
     IConvolutionLayer* stems1_conv = network->addConvolutionNd(*pan_out1_3, 128, DimsHW{ 1, 1 }, weightMap["detect.stems.1.conv.weight"], weightMap["detect.stems.1.conv.bias"]);
@@ -205,7 +206,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* obj_output1 = obj_preds1->getOutput(0);
     obj_output1 = network->addActivation(*obj_output1, ActivationType::kSIGMOID)->getOutput(0);
 
-    ITensor * ny1 = addRegress(network, reg_output1, obj_output1, cls_output1, 16);
+    ITensor * ny1 = addRegress2(network, reg_output1, obj_output1, cls_output1, 16);
 
     //// 2
     IConvolutionLayer* stems2_conv = network->addConvolutionNd(*pan_out0_3, 256, DimsHW{ 1, 1 }, weightMap["detect.stems.2.conv.weight"], weightMap["detect.stems.2.conv.bias"]);
@@ -236,7 +237,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* obj_output2 = obj_preds2->getOutput(0);
     obj_output2 = network->addActivation(*obj_output2, ActivationType::kSIGMOID)->getOutput(0);
 
-    ITensor * ny2 = addRegress(network, reg_output2, obj_output2, cls_output2, 32);
+    ITensor * ny2 = addRegress2(network, reg_output2, obj_output2, cls_output2, 32);
 
     ITensor* z_input[] = { ny0, ny1, ny2 };
     IConcatenationLayer* zconcat = network->addConcatenation(z_input, 3);
@@ -653,6 +654,84 @@ static ITensor *addRegress(INetworkDefinition *network, ITensor *reg_output0, IT
     nyconcat0->setAxis(3);
     ITensor* ny0 = addReahspe(network, { -1, 4 + 1 + CLASS_NUM }, nyconcat0->getOutput(0));
     return ny0;
+}
+
+static ITensor *addRegress2(INetworkDefinition *network, ITensor *reg_output0, ITensor *obj_output0, ITensor *cls_output0, int stride, int minimum)
+{
+    int minimum_pick = std::min(reg_output0->getDimensions().d[1] * reg_output0->getDimensions().d[2], minimum);
+
+    IShuffleLayer* shuffle0 = network->addShuffle(*reg_output0);
+    std::vector<int> trans_dims{ 1, 2, 0 };
+    Permutation f_trans_dims; memcpy(f_trans_dims.order, trans_dims.data(), trans_dims.size() * sizeof(int));
+    shuffle0->setSecondTranspose(f_trans_dims);
+    ITensor* box0 = shuffle0->getOutput(0);
+
+    std::vector<float> grids_vec0;
+    //torch.meshgrid
+    for (int y_idx = 0; y_idx < reg_output0->getDimensions().d[1]; y_idx++) {
+        for (int x_idx = 0; x_idx < reg_output0->getDimensions().d[2]; x_idx++) {
+            grids_vec0.push_back(x_idx);
+            grids_vec0.push_back(y_idx);
+        }
+    }
+
+    float *grids_ptr0 = reinterpret_cast<float*>(malloc(sizeof(float) * grids_vec0.size()));
+    memcpy(grids_ptr0, grids_vec0.data(), grids_vec0.size() * sizeof(float));
+    Weights grids_wt0{ DataType::kFLOAT, grids_ptr0, grids_vec0.size() };
+    ITensor* grids_tensor0 = network->addConstant(Dims3{ reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2 }, grids_wt0)->getOutput(0);
+
+    float *stride_ptr0 = reinterpret_cast<float*>(malloc(sizeof(float) * 1));
+    *stride_ptr0 = stride;
+    Weights stride_wt0{ DataType::kFLOAT, stride_ptr0, 1 };
+    nvinfer1::Dims strid_dim;
+    strid_dim.nbDims = 1;
+    strid_dim.d[0] = 1;
+    ITensor* strid0 = network->addConstant(strid_dim, stride_wt0)->getOutput(0);
+    strid0 = addReahspe(network, {1,1,1 }, strid0);
+
+    ITensor* box01_0 = network->addSlice(*box0, Dims3( 0, 0, 0), Dims3( reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
+    ITensor* box01_sum0 = network->addElementWise(*box01_0, *grids_tensor0, ElementWiseOperation::kSUM)->getOutput(0);
+    ITensor* box23_0 = network->addSlice(*box0, Dims3( 0, 0, 2), Dims3( reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
+    ITensor* box23_exp0 = network->addUnary(*box23_0, UnaryOperation::kEXP)->getOutput(0);
+    ITensor* box_input0[] = { box01_sum0, box23_exp0 };
+    IConcatenationLayer* boxconcat0 = network->addConcatenation(box_input0, 2);
+    boxconcat0->setAxis(2);
+    ITensor* nbox0 = boxconcat0->getOutput(0);
+    ITensor* rois = network->addElementWise(*nbox0, *strid0, ElementWiseOperation::kPROD)->getOutput(0);
+
+    IShuffleLayer* shuffle1 = network->addShuffle(*rois);
+    shuffle1->setReshapeDimensions(Dims2(reg_output0->getDimensions().d[1] * reg_output0->getDimensions().d[2], 4));
+    ITensor* nrois = shuffle1->getOutput(0); // 68, 80, 4 -> (68 * 80, 4)
+
+    IShuffleLayer* shuffle2 = network->addShuffle(*cls_output0);
+    shuffle2->setFirstTranspose(f_trans_dims);
+    shuffle2->setReshapeDimensions(Dims2(cls_output0->getDimensions().d[1] * cls_output0->getDimensions().d[2], CLASS_NUM));
+    ITensor* cls_probs = shuffle2->getOutput(0); // 80, 68, 80 -> (68, 80, 80) -> (68 * 80, 80)
+
+    ITensor* obj_ness = addReahspe(network, { cls_output0->getDimensions().d[1] * cls_output0->getDimensions().d[2], 1 }, obj_output0); // 1, 68, 80 -> (68 * 80, 1)
+
+    ITopKLayer* top0 = network->addTopK(*obj_ness, TopKOperation::kMAX, minimum_pick, 1 << 0); // 1 << 0 -> axis = 0
+    ITensor* obj_conf = top0->getOutput(0); // [minimum_pick,1] sorted prob (*)
+    ITensor* index = top0->getOutput(1);    // [minimum_pick,1]
+    IShuffleLayer* shuffle3 = network->addShuffle(*index);
+    Dims shape_dims; shape_dims.nbDims = 1; shape_dims.d[0] = minimum_pick;
+    shuffle3->setReshapeDimensions(shape_dims);
+    index = shuffle3->getOutput(0);         // [minimum_pick,1] -> [minimum_pick]
+    
+    IGatherLayer* gather0 = network->addGather(*cls_probs, *index, 0);
+    ITensor* cls_probs_sorted = gather0->getOutput(0); // [minimum_pick, 80] sorted by obj (*)
+    
+    //ITopKLayer* top1 = network->addTopK(*cls_probs_sorted, TopKOperation::kMAX, 1, 1 << 1); // 1 << 1 -> axis = 1
+    //ITensor* cls_conf = top1->getOutput(0);     // [minimum_pick, 80] -> [minimum_pick, 1]
+    //ITensor* cls_index = top1->getOutput(1);    // [minimum_pick, 1] class index 
+    
+    IGatherLayer* gather1 = network->addGather(*nrois, *index, 0);
+    ITensor* roi = gather1->getOutput(0);       // [minimum_pick, 4] bbox sorted by obj (*)
+
+    ITensor* y0_input0[] = { roi, obj_conf, cls_probs_sorted };
+    IConcatenationLayer* nyconcat0 = network->addConcatenation(y0_input0, 3);
+    nyconcat0->setAxis(1);
+    return nyconcat0->getOutput(0);
 }
 
 //static ITensor *addRegress2(INetworkDefinition *network, ITensor *reg_output0, ITensor *obj_output0, ITensor *cls_output0, int stride, int minimum = 100)
