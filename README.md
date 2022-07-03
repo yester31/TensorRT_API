@@ -243,8 +243,34 @@
 ***
 
 ## Object Detection model 2 (on progress)
-- Yolov6 model (yolov6.cpp) 
-
+- Yolov6 model (yolov6.cpp)   
+- Comparison of calculation execution time of 1000 iteration and GPU memory usage (with preprocess, without nms)
+<table border="0"  width="100%">
+	<tbody align="center">
+		<tr>
+			<td></td>
+			<td><strong>Pytorch</strong></td><td><strong>TensorRT</strong></td>
+		</tr>
+		<tr>
+			<td>Precision</td><td>FP32</td><td>FP32</td>
+		</tr>
+		<tr>
+			<td>Avg Duration time [ms]</td>
+			<td>20.7 ms</td>
+			<td>10.8 ms</td>
+		</tr>
+		<tr>
+			<td>FPS [frame/sec]</td>
+			<td>48.14 fps</td>
+			<td>92.05 fps</td>
+		</tr>
+		<tr>
+			<td>Memory [GB]</td>
+			<td>1.582 GB</td>
+			<td>1.322 GB</td>
+		</tr>
+	</tbody>
+</table>
 
 ***
  

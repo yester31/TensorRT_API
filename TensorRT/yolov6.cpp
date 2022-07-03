@@ -377,7 +377,7 @@ int main()
     std::cout << "===== input load done =====" << std::endl << std::endl;
 
     uint64_t dur_time = 0;
-    uint64_t iter_count = 10;
+    uint64_t iter_count = 1000;
 
     // Generate CUDA stream
     cudaStream_t stream;
@@ -409,8 +409,8 @@ int main()
     std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
     std::cout << iter_count << " th Iteration" << std::endl;
     std::cout << "Total duration time with data transfer : " << dur_time << " [milliseconds]" << std::endl;
-    std::cout << "Avg duration time with data transfer : " << dur_time / iter_count << " [milliseconds]" << std::endl;
-    std::cout << "FPS : " << 1000.f / (dur_time / iter_count) << " [frame/sec]" << std::endl;
+    std::cout << "Avg duration time with data transfer : " << (float)dur_time / iter_count << " [milliseconds]" << std::endl;
+    std::cout << "FPS : " << 1000.f / ((float)dur_time / iter_count) << " [frame/sec]" << std::endl;
     std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
     std::cout << "==================================================" << std::endl;
 
