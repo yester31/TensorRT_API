@@ -14,11 +14,25 @@ static const int INPUT_C = 3;
 static const int CLASS_NUM = 80;
 static const int ANCHORS = 1;
 static const int MAX_OUTPUT_BBOX_COUNT = 100;
+static const float conf_thres = 0.25;
+static const float iou_thres = 0.45;
 
-static const int precision_mode = 8; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
+static const bool visualization = true;
 
 const char* INPUT_BLOB_NAME = "data";
 const char* OUTPUT_BLOB_NAME = "prob";
+
+// COCO dataset class names2
+static std::vector<std::string> COCO_names2{
+    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant",
+    "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe",
+    "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat",
+    "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl",
+    "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant",
+    "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster",
+    "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+};
 
 static ITensor* addBatchNorm2d(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor& input, std::string lname, float eps);
 static ITensor* addRepVGGBlock(INetworkDefinition *network, std::map<std::string, Weights>& weightMap, ITensor* input, int outch, std::string lname, bool rbr_identity);
@@ -60,7 +74,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     int left = round(dw / 2 - 0.1);
     int right = round(dw / 2 + 0.1);
 
-    Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 3};// Custom(preprocess) plugin 
+    Preprocess preprocess{ maxBatchSize, INPUT_C, INPUT_H, INPUT_W, 3 };// Custom(preprocess) plugin 
     preprocess.P = P;
     preprocess.Q = Q;
     preprocess.P0 = new_unpad_h;
@@ -107,7 +121,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* fpn_out0 = addSimConv(network, weightMap, X0, 128, "neck.reduce_layer0.");
     IDeconvolutionLayer* upsample_feat0 = network->addDeconvolutionNd(*fpn_out0, 128, DimsHW{ 2, 2 }, weightMap["neck.upsample0.upsample_transpose.weight"], weightMap["neck.upsample0.upsample_transpose.bias"]);  //nn.ConvTranspose2d
     upsample_feat0->setStrideNd(DimsHW{ 2, 2 });
-    ITensor* inputs2_0[] = { upsample_feat0->getOutput(0), X1};
+    ITensor* inputs2_0[] = { upsample_feat0->getOutput(0), X1 };
     auto f_concat_layer0 = network->addConcatenation(inputs2_0, 2);
     ITensor* f_out0 = addRepVGGBlock2(network, weightMap, f_concat_layer0->getOutput(0), 128, "neck.Rep_p4.conv1.");
     ITensor* f_out0_1 = addRepVGGBlock(network, weightMap, f_out0, 128, "neck.Rep_p4.block.0.", true);
@@ -123,7 +137,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* pan_out2_1 = addRepVGGBlock(network, weightMap, pan_out2, 64, "neck.Rep_p3.block.0.", true);
     ITensor* pan_out2_2 = addRepVGGBlock(network, weightMap, pan_out2_1, 64, "neck.Rep_p3.block.1.", true);
     ITensor* pan_out2_3 = addRepVGGBlock(network, weightMap, pan_out2_2, 64, "neck.Rep_p3.block.2.", true);
-    
+
     ITensor* down_feat1 = addSimConv2(network, weightMap, pan_out2_3, 64, "neck.downsample2.");
     ITensor* inputs2_2[] = { down_feat1, fpn_out1 };
     auto p_concat_layer1 = network->addConcatenation(inputs2_2, 2);
@@ -131,7 +145,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* pan_out1_1 = addRepVGGBlock(network, weightMap, pan_out1, 128, "neck.Rep_n3.block.0.", true);
     ITensor* pan_out1_2 = addRepVGGBlock(network, weightMap, pan_out1_1, 128, "neck.Rep_n3.block.1.", true);
     ITensor* pan_out1_3 = addRepVGGBlock(network, weightMap, pan_out1_2, 128, "neck.Rep_n3.block.2.", true);
-    
+
     ITensor* down_feat0 = addSimConv2(network, weightMap, pan_out1_3, 128, "neck.downsample1.");
     ITensor* inputs2_3[] = { down_feat0, fpn_out0 };
     auto p_concat_layer2 = network->addConcatenation(inputs2_3, 2);
@@ -141,10 +155,6 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     ITensor* pan_out0_3 = addRepVGGBlock(network, weightMap, pan_out0_2, 256, "neck.Rep_n4.block.2.", true);
     // neck
 
-    //outputs = [pan_out2_3, pan_out1_3, pan_out0_3]
-    //show_dims(pan_out2_3); // 64 68 80
-    //show_dims(pan_out1_3); // 128, 34, 40
-    //show_dims(pan_out0_3); // 256, 17, 20
     // detect
     // 0
     IConvolutionLayer* stems0_conv = network->addConvolutionNd(*pan_out2_3, 64, DimsHW{ 1, 1 }, weightMap["detect.stems.0.conv.weight"], weightMap["detect.stems.0.conv.bias"]);
@@ -176,7 +186,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     obj_output0 = network->addActivation(*obj_output0, ActivationType::kSIGMOID)->getOutput(0);
 
     ITensor * ny0 = addRegress2(network, reg_output0, obj_output0, cls_output0, 8);
-    
+
     // 1
     IConvolutionLayer* stems1_conv = network->addConvolutionNd(*pan_out1_3, 128, DimsHW{ 1, 1 }, weightMap["detect.stems.1.conv.weight"], weightMap["detect.stems.1.conv.bias"]);
     stems1_conv->setStrideNd(DimsHW{ 1, 1 });
@@ -208,7 +218,7 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 
     ITensor * ny1 = addRegress2(network, reg_output1, obj_output1, cls_output1, 16);
 
-    //// 2
+    // 2
     IConvolutionLayer* stems2_conv = network->addConvolutionNd(*pan_out0_3, 256, DimsHW{ 1, 1 }, weightMap["detect.stems.2.conv.weight"], weightMap["detect.stems.2.conv.bias"]);
     stems2_conv->setStrideNd(DimsHW{ 1, 1 });
     ITensor* stems2 = addSilu(network, stems2_conv->getOutput(0));
@@ -244,16 +254,16 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     zconcat->setAxis(0);
     ITensor* z = zconcat->getOutput(0);
 
+    int minimum_pick = std::min(z->getDimensions().d[0], MAX_OUTPUT_BBOX_COUNT);
     auto slice_layer = network->addSlice(*z, Dims2(0, 4), Dims2(z->getDimensions().d[0], 1), Dims2(1, 1));
-    auto sort_layer = network->addTopK(*slice_layer->getOutput(0), TopKOperation::kMAX, MAX_OUTPUT_BBOX_COUNT, 1 << 0);
+    auto sort_layer = network->addTopK(*slice_layer->getOutput(0), TopKOperation::kMAX, minimum_pick, 1 << 0);
     auto shuffle_layer = network->addShuffle(*sort_layer->getOutput(1));
-    Dims dims_shape; dims_shape.nbDims = 1; dims_shape.d[0] = MAX_OUTPUT_BBOX_COUNT;
+    Dims dims_shape; dims_shape.nbDims = 1; dims_shape.d[0] = minimum_pick;
     shuffle_layer->setReshapeDimensions(dims_shape);
     auto gather_layer = network->addGather(*z, *shuffle_layer->getOutput(0), 0);
     ITensor* final_tensor = gather_layer->getOutput(0);
 
     // detect
-
     show_dims(final_tensor);
     final_tensor->setName(OUTPUT_BLOB_NAME);
     network->markOutput(*final_tensor);
@@ -371,14 +381,14 @@ int main()
     cv::Mat ori_img;
     std::vector<uint8_t> input(maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
     for (int idx = 0; idx < maxBatchSize; idx++) { // mat -> vector<uint8_t> 
-        cv::Mat ori_img = cv::imread(file_names[idx]);
+        ori_img = cv::imread(file_names[idx]);
         memcpy(input.data(), ori_img.data, maxBatchSize * INPUT_H * INPUT_W * INPUT_C);
     }
 
     std::cout << "===== input load done =====" << std::endl << std::endl;
 
     uint64_t dur_time = 0;
-    uint64_t iter_count = 1000;
+    uint64_t iter_count = 100;
 
     // Generate CUDA stream
     cudaStream_t stream;
@@ -391,7 +401,7 @@ int main()
     CHECK(cudaMemcpyAsync(outputs.data(), buffers[outputIndex], maxBatchSize * OUTPUT_SIZE * sizeof(float), cudaMemcpyDeviceToHost, stream));
     cudaStreamSynchronize(stream);
     std::cout << "===== warm-up done =====" << std::endl << std::endl;
-    
+
     // 5) Inference  
     for (int i = 0; i < iter_count; i++) {
         auto start = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -405,7 +415,7 @@ int main()
         dur_time += dur;
     }
 
-    // 6) Print results
+    // 6) Inference results
     std::cout << "==================================================" << std::endl;
     std::cout << "Model : " << engineFileName << ", Precision : " << precision_mode << std::endl;
     std::cout << iter_count << " th Iteration" << std::endl;
@@ -414,8 +424,98 @@ int main()
     std::cout << "FPS : " << 1000.f / ((float)dur_time / iter_count) << " [frame/sec]" << std::endl;
     std::cout << "===== TensorRT Model Calculate done =====" << std::endl;
     std::cout << "==================================================" << std::endl;
+    //tofile(outputs, "../Validation_py/c"); // ouputs data to files
 
-    tofile(outputs, "../Validation_py/c"); // ouputs data to files
+    // 7) postprocess (nms)
+    std::vector<std::vector<float>> detects(maxBatchSize);
+    for (int b = 0; b < maxBatchSize; b++) {
+        for (int i = 0; i < MAX_OUTPUT_BBOX_COUNT; i++) { // MAX_OUTPUT_BBOX_COUNT = 100
+            float* pred = outputs.data() + b * MAX_OUTPUT_BBOX_COUNT * (CLASS_NUM + 5) + i * (CLASS_NUM + 5);
+            if (conf_thres > pred[4]) continue; // candidates
+            float label = -1;
+            float cls_score = -1;
+            for (int j = 0; j < CLASS_NUM; j++) { // CLASS_NUM = 80
+                if (cls_score < pred[j + 5]) {
+                    label = (float)j;
+                    cls_score = pred[j + 5];
+                }
+            }
+            // center x, center y, w, h -> x1, y1, x2, y2
+            detects[b].push_back(pred[0] - pred[2] / 2);
+            detects[b].push_back(pred[1] - pred[3] / 2);
+            detects[b].push_back(pred[0] + pred[2] / 2);
+            detects[b].push_back(pred[1] + pred[3] / 2);
+            detects[b].push_back(cls_score * pred[4]); // conf = obj_conf * cls_conf
+            detects[b].push_back(label);
+        }
+    }
+    std::vector<std::vector<float>> finals(maxBatchSize);
+    for (int b = 0; b < maxBatchSize; b++) { // batchsize = 1
+        float* candi = detects[b].data();
+        finals[b].push_back(candi[0]); // x1
+        finals[b].push_back(candi[1]); // y1
+        finals[b].push_back(candi[2]); // x2
+        finals[b].push_back(candi[3]); // y2
+        finals[b].push_back(candi[4]); // conf
+        finals[b].push_back(candi[5]); // cls index
+        for (int a_idx = 1; a_idx < detects[b].size() / 6; a_idx++) {
+            const float x1 = candi[a_idx * 6];
+            const float y1 = candi[a_idx * 6 + 1];
+            const float x2 = candi[a_idx * 6 + 2];
+            const float y2 = candi[a_idx * 6 + 3];
+            const float conf = candi[a_idx * 6 + 4];
+            const float cls_index = candi[a_idx * 6 + 5];
+            bool safe = true;
+            for (int s_idx = 0; s_idx < int(finals[b].size() / 6); s_idx++) {
+                const float bx1 = finals[b][s_idx * 6];
+                const float by1 = finals[b][s_idx * 6 + 1];
+                const float bx2 = finals[b][s_idx * 6 + 2];
+                const float by2 = finals[b][s_idx * 6 + 3];
+                const float Y1 = std::max(by1, y1);
+                const float X1 = std::max(bx1, x1);
+                const float Y2 = std::min(by2, y2);
+                const float X2 = std::min(bx2, x2);
+                const float A = (bx2 - bx1) * (by2 - by1);
+                const float B = (x2 - x1) * (y2 - y1);
+                const float x = std::max(0.f, X2 - X1) * std::max(0.f, Y2 - Y1);
+                const float iou = (A + B - x == 0.f) ? 1.f : x / (A + B - x);
+                if (iou > iou_thres) {
+                    safe = false;
+                    break;
+                }
+            }
+            if (safe) {
+                finals[b].push_back(x1); // x1
+                finals[b].push_back(y1); // y1
+                finals[b].push_back(x2); // x2
+                finals[b].push_back(y2); // y2
+                finals[b].push_back(conf); // conf
+                finals[b].push_back(cls_index); // cls index 
+            }
+        }
+    }
+
+    // 8) visualization
+    if (visualization) {
+        std::vector<std::vector<float>> COLORS = { {0.000, 0.447, 0.741}, {0.850, 0.325, 0.098}, {0.929, 0.694, 0.125},{0.494, 0.184, 0.556}, {0.466, 0.674, 0.188}, {0.301, 0.745, 0.933} };
+        for (int b = 0; b < maxBatchSize; b++) {
+            for (int idx = 0; finals[b].size() / 6 > idx && finals[b][idx * 6 + 4] > 0.8; idx++) {
+                float x1 = finals[b][idx * 6];
+                float y1 = finals[b][idx * 6 + 1];
+                float x2 = finals[b][idx * 6 + 2];
+                float y2 = finals[b][idx * 6 + 3];
+                int label = finals[b][idx * 6 + 5];
+                cv::Rect rec(x1, y1, x2 - x1, y2 - y1);
+                cv::Scalar color(int(COLORS[idx%COLORS.size()][2] * 100), int(COLORS[idx%COLORS.size()][1] * 100), int(COLORS[idx%COLORS.size()][0] * 100));
+                cv::rectangle(ori_img, rec, color, 1.5);
+                std::string instance_name = std::to_string(idx) + "_" + COCO_names2[label] + "_" + std::to_string((int)(finals[b][idx * 6 + 4] * 100)) + "%";
+                cv::putText(ori_img, instance_name.c_str(), cv::Point(rec.x, rec.y - 1), cv::FONT_HERSHEY_PLAIN, 0.8, color, 1.5);
+                printf("      %d %4d prob=%.5f %s\n", idx, label, finals[b][idx * 6 + 4], COCO_names2[label].c_str());
+            }
+            cv::imshow("result", ori_img);
+            cv::waitKey(0);
+        }
+    }
 
     // Release stream and buffers ...
     cudaStreamDestroy(stream);
@@ -687,11 +787,11 @@ static ITensor *addRegress2(INetworkDefinition *network, ITensor *reg_output0, I
     strid_dim.nbDims = 1;
     strid_dim.d[0] = 1;
     ITensor* strid0 = network->addConstant(strid_dim, stride_wt0)->getOutput(0);
-    strid0 = addReahspe(network, {1,1,1 }, strid0);
+    strid0 = addReahspe(network, { 1,1,1 }, strid0);
 
-    ITensor* box01_0 = network->addSlice(*box0, Dims3( 0, 0, 0), Dims3( reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
+    ITensor* box01_0 = network->addSlice(*box0, Dims3(0, 0, 0), Dims3(reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
     ITensor* box01_sum0 = network->addElementWise(*box01_0, *grids_tensor0, ElementWiseOperation::kSUM)->getOutput(0);
-    ITensor* box23_0 = network->addSlice(*box0, Dims3( 0, 0, 2), Dims3( reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
+    ITensor* box23_0 = network->addSlice(*box0, Dims3(0, 0, 2), Dims3(reg_output0->getDimensions().d[1], reg_output0->getDimensions().d[2], 2), Dims3{ 1, 1, 1 })->getOutput(0);
     ITensor* box23_exp0 = network->addUnary(*box23_0, UnaryOperation::kEXP)->getOutput(0);
     ITensor* box_input0[] = { box01_sum0, box23_exp0 };
     IConcatenationLayer* boxconcat0 = network->addConcatenation(box_input0, 2);
@@ -717,14 +817,14 @@ static ITensor *addRegress2(INetworkDefinition *network, ITensor *reg_output0, I
     Dims shape_dims; shape_dims.nbDims = 1; shape_dims.d[0] = minimum_pick;
     shuffle3->setReshapeDimensions(shape_dims);
     index = shuffle3->getOutput(0);         // [minimum_pick,1] -> [minimum_pick]
-    
+
     IGatherLayer* gather0 = network->addGather(*cls_probs, *index, 0);
     ITensor* cls_probs_sorted = gather0->getOutput(0); // [minimum_pick, 80] sorted by obj (*)
-    
+
     //ITopKLayer* top1 = network->addTopK(*cls_probs_sorted, TopKOperation::kMAX, 1, 1 << 1); // 1 << 1 -> axis = 1
     //ITensor* cls_conf = top1->getOutput(0);     // [minimum_pick, 80] -> [minimum_pick, 1]
     //ITensor* cls_index = top1->getOutput(1);    // [minimum_pick, 1] class index 
-    
+
     IGatherLayer* gather1 = network->addGather(*nrois, *index, 0);
     ITensor* roi = gather1->getOutput(0);       // [minimum_pick, 4] bbox sorted by obj (*)
 

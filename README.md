@@ -242,8 +242,8 @@
 
 ***
 
-## Object Detection model 2 (on progress)
-- Yolov6 model (yolov6.cpp)   
+## Object Detection model 2
+- Yolov6s model (yolov6.cpp)   
 - Comparison of calculation execution time of 1000 iteration 
 and GPU memory usage (with preprocess, without nms, 536 x 640 x 3)
 <table border="0"  width="100%">

@@ -241,7 +241,7 @@ int main()
 	std::cout << "===== input load done =====" << std::endl << std::endl;
 
 	uint64_t dur_time = 0;
-	uint64_t iter_count = 100;
+	uint64_t iter_count = 1;
 
 	// CUDA 스트림 생성
 	cudaStream_t stream;
