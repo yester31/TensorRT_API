@@ -304,4 +304,4 @@ and GPU memory usage (with preprocess, without nms, 536 x 640 x 3)
 * detr : <https://github.com/facebookresearch/detr>
 * yolov5 : <https://github.com/ultralytics/yolov5>
 * real-esrgan : <https://github.com/xinntao/Real-ESRGAN>
-* Thin-Plate-Spline-Motion-Model : <https://github.com/yoyo-nb/Thin-Plate-Spline-Motion-Model>
+* yolov6 : <https://github.com/meituan/YOLOv6>
