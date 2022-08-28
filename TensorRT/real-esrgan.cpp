@@ -11,7 +11,7 @@ sample::Logger gLogger;
 static const int INPUT_H = 220;
 static const int INPUT_W = 220;
 static const int INPUT_C = 3;
-static const int OUT_SCALE = 4;
+static const int OUT_SCALE = 2;
 static const int OUTPUT_SIZE = INPUT_C * INPUT_H * OUT_SCALE * INPUT_W * OUT_SCALE;
 static const int precision_mode = 32; // fp32 : 32, fp16 : 16, int8(ptq) : 8
 
@@ -26,8 +26,13 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
 {
     std::cout << "==== model build start ====" << std::endl << std::endl;
     INetworkDefinition* network = builder->createNetworkV2(0U);
-
-    std::map<std::string, Weights> weightMap = loadWeights("../Real-ESRGAN_py/real-esrgan.wts");
+    std::map<std::string, Weights> weightMap;
+    if (OUT_SCALE == 2) {
+        weightMap = loadWeights("../Real-ESRGAN_py/RealESRGAN_x2plus.wts");
+    }
+    else {
+        weightMap = loadWeights("../Real-ESRGAN_py/real-esrgan.wts");
+    }
     Weights emptywts{ DataType::kFLOAT, nullptr, 0 };
 
     ITensor* data = network->addInput(INPUT_BLOB_NAME, dt, Dims3{ INPUT_H, INPUT_W, INPUT_C });
@@ -39,6 +44,27 @@ void createEngine(unsigned int maxBatchSize, IBuilder* builder, IBuilderConfig* 
     IPluginV2Layer* preprocess_layer = network->addPluginV2(&data, 1, *preprocess_plugin);
     preprocess_layer->setName("preprocess_layer");
     ITensor* prep = preprocess_layer->getOutput(0);
+
+    if (OUT_SCALE == 2) {
+        // Pixel unshuffle.
+        int h = INPUT_H / OUT_SCALE;
+        int w = INPUT_W / OUT_SCALE;
+        auto attn_shuffle = network->addShuffle(*prep);
+
+        Dims shape_dims;
+        std::vector<int> reshape_dims = { INPUT_C, h, OUT_SCALE, w, OUT_SCALE };
+        shape_dims.nbDims = (int)reshape_dims.size();
+        memcpy(shape_dims.d, reshape_dims.data(), reshape_dims.size() * sizeof(int));
+        attn_shuffle->setReshapeDimensions(shape_dims);
+
+        std::vector<int> trans_dims{ 0, 2, 4, 1, 3 };
+        Permutation f_trans_dims; memcpy(f_trans_dims.order, trans_dims.data(), trans_dims.size() * sizeof(int));
+        attn_shuffle->setSecondTranspose(f_trans_dims);
+
+        auto attn_shuffle2 = network->addShuffle(*attn_shuffle->getOutput(0));
+        attn_shuffle2->setReshapeDimensions(Dims3{ INPUT_C * OUT_SCALE * OUT_SCALE, h, w});
+        prep = attn_shuffle2->getOutput(0);
+    }
 
     // conv_first
     IConvolutionLayer* conv_first = network->addConvolutionNd(*prep, 64, DimsHW{ 3, 3 }, weightMap["conv_first.weight"], weightMap["conv_first.bias"]);
@@ -153,6 +179,7 @@ int main()
     unsigned int maxBatchSize = 1;			// batch size 
     bool serialize = true;					// TensorRT Model Serialize flag(true : generate engine, false : if no engine file, generate engine )
     char engineFileName[] = "real-esrgan";	// model name
+
     char engine_file_path[256];
     sprintf(engine_file_path, "../Engine/%s_%d.engine", engineFileName, precision_mode);
 

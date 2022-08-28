@@ -79,22 +79,22 @@ class RealESRGANer():
             self.img = F.pad(self.img, (0, self.mod_pad_w, 0, self.mod_pad_h), 'reflect')
 
     def process(self):
-        if os.path.isfile('real-esrgan.wts'):
-            print('Already, real-esrgan.wts file exists.')
-        else:
-            print('making real-esrgan.wts file ...')  # vgg.wts 파일이 없다면 생성
-            f = open("real-esrgan.wts", 'w')
-            f.write("{}\n".format(len(self.model.state_dict().keys())))
-            for k, v in self.model.state_dict().items():
-                print('key: ', k)
-                print('value: ', v.shape)
-                vr = v.reshape(-1).cpu().numpy()
-                f.write("{} {}".format(k, len(vr)))
-                for vv in vr:
-                    f.write(" ")
-                    f.write(struct.pack(">f", float(vv)).hex())
-                f.write("\n")
-            print('Completed real-esrgan.wts file!')
+        # if os.path.isfile('real-esrgan.wts'):
+        #     print('Already, real-esrgan.wts file exists.')
+        # else:
+        #     print('making real-esrgan.wts file ...')  # vgg.wts 파일이 없다면 생성
+        #     f = open("real-esrgan.wts", 'w')
+        #     f.write("{}\n".format(len(self.model.state_dict().keys())))
+        #     for k, v in self.model.state_dict().items():
+        #         print('key: ', k)
+        #         print('value: ', v.shape)
+        #         vr = v.reshape(-1).cpu().numpy()
+        #         f.write("{} {}".format(k, len(vr)))
+        #         for vv in vr:
+        #             f.write(" ")
+        #             f.write(struct.pack(">f", float(vv)).hex())
+        #         f.write("\n")
+        #     print('Completed real-esrgan.wts file!')
 
         # model inference
         self.output = self.model(self.img)

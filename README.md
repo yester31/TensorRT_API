@@ -206,6 +206,7 @@
 - RealESRGAN_x4plus.pth
 - Scale up 4x (448x640x3 -> 1792x2560x3) 
 - Comparison of calculation execution time of 100 iteration and GPU memory usage
+- [update] RealESRGAN_x2plus model (set OUT_SCALE=2)
 
 <table border="0"  width="100%">
 	<tbody align="center">

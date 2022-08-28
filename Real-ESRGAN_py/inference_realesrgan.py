@@ -18,11 +18,12 @@ def main():
         '-n',
         '--model_name',
         type=str,
-        default='RealESRGAN_x4plus',
+        #default='RealESRGAN_x4plus',
+        default='RealESRGAN_x2plus',
         help=('Model names: RealESRGAN_x4plus | RealESRNet_x4plus | RealESRGAN_x4plus_anime_6B | RealESRGAN_x2plus | '
               'realesr-animevideov3'))
     parser.add_argument('-o', '--output', type=str, default='results', help='Output folder')
-    parser.add_argument('-s', '--outscale', type=float, default=4, help='The final upsampling scale of the image')
+    parser.add_argument('-s', '--outscale', type=float, default=2, help='The final upsampling scale of the image')
     parser.add_argument('--suffix', type=str, default='out', help='Suffix of the restored image')
     parser.add_argument('-t', '--tile', type=int, default=0, help='Tile size, 0 for no tile during testing')
     parser.add_argument('--tile_pad', type=int, default=10, help='Tile padding')
@@ -75,11 +76,11 @@ def main():
         half= args.fp32)
         #half=not args.fp32)
 
-    if os.path.isfile('real-esrgan.wts'):
-        print('Already, real-esrgan.wts file exists.')
+    if os.path.isfile(f'{args.model_name}.wts'):
+        print(f'Already, {args.model_name}.wts file exists.')
     else:
-        print('making real-esrgan.wts file ...')  # vgg.wts 파일이 없다면 생성
-        f = open("real-esrgan.wts", 'w')
+        print(f'making {args.model_name}.wts file ...')  # vgg.wts 파일이 없다면 생성
+        f = open(f"{args.model_name}.wts", 'w')
         f.write("{}\n".format(len(upsampler.model.state_dict().keys())))
         for k, v in upsampler.model.state_dict().items():
             print('key: ', k)
@@ -90,7 +91,7 @@ def main():
                 f.write(" ")
                 f.write(struct.pack(">f", float(vv)).hex())
             f.write("\n")
-        print('Completed real-esrgan.wts file!')
+        print(f'Completed {args.model_name}.wts file!')
 
     if args.face_enhance:  # Use GFPGAN for face enhancement
         from gfpgan import GFPGANer
@@ -125,7 +126,7 @@ def main():
                 output, _ = upsampler.enhance(img, outscale=args.outscale)
 
                 dur_time = 0
-                iters = 10
+                iters = 1
                 for _ in range(iters):
                     begin = time.time()
                     output, _ = upsampler.enhance(img, outscale=args.outscale)
