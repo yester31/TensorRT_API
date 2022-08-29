@@ -1,8 +1,5 @@
 # TensorRT_EX
 
-## in progress
-- Easier and more intuitive code structure
-
 ## Enviroments
 ***
 - Windows 10 laptop
@@ -281,6 +278,10 @@ and GPU memory usage (with preprocess, without nms, 536 x 640 x 3)
 </table>
 
 ***
+
+## Object Detection model 3 (in progress)
+- Yolov7 model (yolov7.cpp)   
+
  
 ## Using C TensoRT model in Python using dll
 - TRT_DLL_EX : <https://github.com/yester31/TRT_DLL_EX>

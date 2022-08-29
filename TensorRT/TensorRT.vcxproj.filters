@@ -18,6 +18,7 @@
     <ClCompile Include="real-esrgan.cpp" />
     <ClCompile Include="resnet18.cpp" />
     <ClCompile Include="yolov6.cpp" />
+    <ClCompile Include="yolov7.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="preprocess.hpp">

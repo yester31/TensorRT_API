@@ -1,0 +1,372 @@
+key:  model.0.conv.weight
+value:  torch.Size([32, 3, 3, 3])
+key:  model.0.conv.bias
+value:  torch.Size([32])
+key:  model.1.conv.weight
+value:  torch.Size([64, 32, 3, 3])
+key:  model.1.conv.bias
+value:  torch.Size([64])
+key:  model.2.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.2.conv.bias
+value:  torch.Size([64])
+key:  model.3.conv.weight
+value:  torch.Size([128, 64, 3, 3])
+key:  model.3.conv.bias
+value:  torch.Size([128])
+key:  model.4.conv.weight
+value:  torch.Size([64, 128, 1, 1])
+key:  model.4.conv.bias
+value:  torch.Size([64])
+key:  model.5.conv.weight
+value:  torch.Size([64, 128, 1, 1])
+key:  model.5.conv.bias
+value:  torch.Size([64])
+key:  model.6.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.6.conv.bias
+value:  torch.Size([64])
+key:  model.7.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.7.conv.bias
+value:  torch.Size([64])
+key:  model.8.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.8.conv.bias
+value:  torch.Size([64])
+key:  model.9.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.9.conv.bias
+value:  torch.Size([64])
+key:  model.11.conv.weight
+value:  torch.Size([256, 256, 1, 1])
+key:  model.11.conv.bias
+value:  torch.Size([256])
+key:  model.13.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.13.conv.bias
+value:  torch.Size([128])
+key:  model.14.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.14.conv.bias
+value:  torch.Size([128])
+key:  model.15.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.15.conv.bias
+value:  torch.Size([128])
+key:  model.17.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.17.conv.bias
+value:  torch.Size([128])
+key:  model.18.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.18.conv.bias
+value:  torch.Size([128])
+key:  model.19.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.19.conv.bias
+value:  torch.Size([128])
+key:  model.20.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.20.conv.bias
+value:  torch.Size([128])
+key:  model.21.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.21.conv.bias
+value:  torch.Size([128])
+key:  model.22.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.22.conv.bias
+value:  torch.Size([128])
+key:  model.24.conv.weight
+value:  torch.Size([512, 512, 1, 1])
+key:  model.24.conv.bias
+value:  torch.Size([512])
+key:  model.26.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.26.conv.bias
+value:  torch.Size([256])
+key:  model.27.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.27.conv.bias
+value:  torch.Size([256])
+key:  model.28.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.28.conv.bias
+value:  torch.Size([256])
+key:  model.30.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.30.conv.bias
+value:  torch.Size([256])
+key:  model.31.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.31.conv.bias
+value:  torch.Size([256])
+key:  model.32.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.32.conv.bias
+value:  torch.Size([256])
+key:  model.33.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.33.conv.bias
+value:  torch.Size([256])
+key:  model.34.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.34.conv.bias
+value:  torch.Size([256])
+key:  model.35.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.35.conv.bias
+value:  torch.Size([256])
+key:  model.37.conv.weight
+value:  torch.Size([1024, 1024, 1, 1])
+key:  model.37.conv.bias
+value:  torch.Size([1024])
+key:  model.39.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.39.conv.bias
+value:  torch.Size([512])
+key:  model.40.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.40.conv.bias
+value:  torch.Size([512])
+key:  model.41.conv.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  model.41.conv.bias
+value:  torch.Size([512])
+key:  model.43.conv.weight
+value:  torch.Size([256, 1024, 1, 1])
+key:  model.43.conv.bias
+value:  torch.Size([256])
+key:  model.44.conv.weight
+value:  torch.Size([256, 1024, 1, 1])
+key:  model.44.conv.bias
+value:  torch.Size([256])
+key:  model.45.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.45.conv.bias
+value:  torch.Size([256])
+key:  model.46.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.46.conv.bias
+value:  torch.Size([256])
+key:  model.47.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.47.conv.bias
+value:  torch.Size([256])
+key:  model.48.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.48.conv.bias
+value:  torch.Size([256])
+key:  model.50.conv.weight
+value:  torch.Size([1024, 1024, 1, 1])
+key:  model.50.conv.bias
+value:  torch.Size([1024])
+key:  model.51.cv1.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.51.cv1.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv2.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.51.cv2.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv3.conv.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  model.51.cv3.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv4.conv.weight
+value:  torch.Size([512, 512, 1, 1])
+key:  model.51.cv4.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv5.conv.weight
+value:  torch.Size([512, 2048, 1, 1])
+key:  model.51.cv5.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv6.conv.weight
+value:  torch.Size([512, 512, 3, 3])
+key:  model.51.cv6.conv.bias
+value:  torch.Size([512])
+key:  model.51.cv7.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.51.cv7.conv.bias
+value:  torch.Size([512])
+key:  model.52.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.52.conv.bias
+value:  torch.Size([256])
+key:  model.54.conv.weight
+value:  torch.Size([256, 1024, 1, 1])
+key:  model.54.conv.bias
+value:  torch.Size([256])
+key:  model.56.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.56.conv.bias
+value:  torch.Size([256])
+key:  model.57.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.57.conv.bias
+value:  torch.Size([256])
+key:  model.58.conv.weight
+value:  torch.Size([128, 256, 3, 3])
+key:  model.58.conv.bias
+value:  torch.Size([128])
+key:  model.59.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.59.conv.bias
+value:  torch.Size([128])
+key:  model.60.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.60.conv.bias
+value:  torch.Size([128])
+key:  model.61.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.61.conv.bias
+value:  torch.Size([128])
+key:  model.63.conv.weight
+value:  torch.Size([256, 1024, 1, 1])
+key:  model.63.conv.bias
+value:  torch.Size([256])
+key:  model.64.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.64.conv.bias
+value:  torch.Size([128])
+key:  model.66.conv.weight
+value:  torch.Size([128, 512, 1, 1])
+key:  model.66.conv.bias
+value:  torch.Size([128])
+key:  model.68.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.68.conv.bias
+value:  torch.Size([128])
+key:  model.69.conv.weight
+value:  torch.Size([128, 256, 1, 1])
+key:  model.69.conv.bias
+value:  torch.Size([128])
+key:  model.70.conv.weight
+value:  torch.Size([64, 128, 3, 3])
+key:  model.70.conv.bias
+value:  torch.Size([64])
+key:  model.71.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.71.conv.bias
+value:  torch.Size([64])
+key:  model.72.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.72.conv.bias
+value:  torch.Size([64])
+key:  model.73.conv.weight
+value:  torch.Size([64, 64, 3, 3])
+key:  model.73.conv.bias
+value:  torch.Size([64])
+key:  model.75.conv.weight
+value:  torch.Size([128, 512, 1, 1])
+key:  model.75.conv.bias
+value:  torch.Size([128])
+key:  model.77.conv.weight
+value:  torch.Size([128, 128, 1, 1])
+key:  model.77.conv.bias
+value:  torch.Size([128])
+key:  model.78.conv.weight
+value:  torch.Size([128, 128, 1, 1])
+key:  model.78.conv.bias
+value:  torch.Size([128])
+key:  model.79.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.79.conv.bias
+value:  torch.Size([128])
+key:  model.81.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.81.conv.bias
+value:  torch.Size([256])
+key:  model.82.conv.weight
+value:  torch.Size([256, 512, 1, 1])
+key:  model.82.conv.bias
+value:  torch.Size([256])
+key:  model.83.conv.weight
+value:  torch.Size([128, 256, 3, 3])
+key:  model.83.conv.bias
+value:  torch.Size([128])
+key:  model.84.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.84.conv.bias
+value:  torch.Size([128])
+key:  model.85.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.85.conv.bias
+value:  torch.Size([128])
+key:  model.86.conv.weight
+value:  torch.Size([128, 128, 3, 3])
+key:  model.86.conv.bias
+value:  torch.Size([128])
+key:  model.88.conv.weight
+value:  torch.Size([256, 1024, 1, 1])
+key:  model.88.conv.bias
+value:  torch.Size([256])
+key:  model.90.conv.weight
+value:  torch.Size([256, 256, 1, 1])
+key:  model.90.conv.bias
+value:  torch.Size([256])
+key:  model.91.conv.weight
+value:  torch.Size([256, 256, 1, 1])
+key:  model.91.conv.bias
+value:  torch.Size([256])
+key:  model.92.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.92.conv.bias
+value:  torch.Size([256])
+key:  model.94.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.94.conv.bias
+value:  torch.Size([512])
+key:  model.95.conv.weight
+value:  torch.Size([512, 1024, 1, 1])
+key:  model.95.conv.bias
+value:  torch.Size([512])
+key:  model.96.conv.weight
+value:  torch.Size([256, 512, 3, 3])
+key:  model.96.conv.bias
+value:  torch.Size([256])
+key:  model.97.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.97.conv.bias
+value:  torch.Size([256])
+key:  model.98.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.98.conv.bias
+value:  torch.Size([256])
+key:  model.99.conv.weight
+value:  torch.Size([256, 256, 3, 3])
+key:  model.99.conv.bias
+value:  torch.Size([256])
+key:  model.101.conv.weight
+value:  torch.Size([512, 2048, 1, 1])
+key:  model.101.conv.bias
+value:  torch.Size([512])
+key:  model.102.rbr_reparam.weight
+value:  torch.Size([256, 128, 3, 3])
+key:  model.102.rbr_reparam.bias
+value:  torch.Size([256])
+key:  model.103.rbr_reparam.weight
+value:  torch.Size([512, 256, 3, 3])
+key:  model.103.rbr_reparam.bias
+value:  torch.Size([512])
+key:  model.104.rbr_reparam.weight
+value:  torch.Size([1024, 512, 3, 3])
+key:  model.104.rbr_reparam.bias
+value:  torch.Size([1024])
+key:  model.105.anchors
+value:  torch.Size([3, 3, 2])
+key:  model.105.anchor_grid
+value:  torch.Size([3, 1, 3, 1, 1, 2])
+key:  model.105.m.0.weight
+value:  torch.Size([255, 256, 1, 1])
+key:  model.105.m.0.bias
+value:  torch.Size([255])
+key:  model.105.m.1.weight
+value:  torch.Size([255, 512, 1, 1])
+key:  model.105.m.1.bias
+value:  torch.Size([255])
+key:  model.105.m.2.weight
+value:  torch.Size([255, 1024, 1, 1])
+key:  model.105.m.2.bias
+value:  torch.Size([255])
